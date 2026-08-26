@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block meta_description %}Prime Coaching — treinos, alimentação e acompanhamento personalizado.{% endblock %}">
     <link rel="shortcut icon" href="{% static 'img/04_icone_verdebranco_fundo_preto.png' %}" type="image/x-icon">
     <title>{% block title %}Prime Coaching{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,14 +25,14 @@
                             800: 'hsl(66, 61%, 28%)',
                             900: 'hsl(66, 61%, 20%)',
                         },
-                    
+
                         dark: {
                             DEFAULT: 'hsl(0, 0%, 0%)',      // preto
                             card:    'hsl(0, 0%, 7%)',      // card
                             surface: 'hsl(0, 0%, 13%)',     // accent / hover
                             border:  'hsl(0, 0%, 20%)',     // border
                         },
-                    
+
                         light: {
                             DEFAULT: 'hsl(0, 0%, 100%)',    // branco
                             card:    'hsl(0, 0%, 98%)',
@@ -58,23 +59,43 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        /* Garante foco visível para navegação por teclado */
+        a:focus-visible,
+        button:focus-visible {
+            outline: 2px solid hsl(66, 61%, 58%);
+            outline-offset: 2px;
+        }
+
+        /* Trava o scroll do body quando o menu mobile está aberto */
+        body.sidebar-open {
+            overflow: hidden;
+        }
+
+        @media (min-width: 1024px) {
+            body.sidebar-open {
+                overflow: auto;
+            }
+        }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body class="h-full bg-dark text-gray-100">
 <div class="min-h-full flex">
-    <!-- Sidebar (mobile: hidden, desktop: fixed) -->
+    <!-- Sidebar (mobile: oculta, desktop: fixa) -->
     <aside id="sidebar"
-           class="fixed inset-y-0 left-0 z-50 w-64 bg-dark-card border-r border-dark-border transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
+           class="fixed inset-y-0 left-0 z-50 w-64 bg-dark-card border-r border-dark-border transform -translate-x-full lg:translate-x-0 transition-transform duration-200"
+           aria-label="Menu principal">
         <div class="flex items-center gap-3 px-6 py-5 border-b border-dark-border">
-            
-                <img src="{% static 'img/05_icon_texto_verdebranco_fundo_preto_grande.png' %}" alt="" width="140">
-        
+            <img src="{% static 'img/05_icon_texto_verdebranco_fundo_preto_grande.png' %}"
+                 alt="Prime Coaching" width="120">
         </div>
-        
-        <nav class="mt-4 px-3 space-y-1">
+
+        <nav class="mt-4 px-3 space-y-1" aria-label="Navegação principal">
 
             <!-- Dashboard -->
             <a href="{% url 'accounts:dashboard' %}"
+               {% if request.resolver_match.url_name == 'dashboard' %}aria-current="page"{% endif %}
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
        {% if request.resolver_match.url_name == 'dashboard' %}
            bg-brand-600/20 text-brand-400
@@ -82,8 +103,7 @@
            text-gray-400 hover:bg-dark-surface hover:text-white
        {% endif %} transition-colors">
 
-                <!-- icon -->
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/>
                 </svg>
@@ -93,6 +113,7 @@
 
             <!-- Treinos -->
             <a href="{% url 'workouts:plan_list' %}"
+               {% if request.resolver_match.app_name == 'workouts' %}aria-current="page"{% endif %}
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
        {% if request.resolver_match.app_name == 'workouts' %}
            bg-brand-600/20 text-brand-400
@@ -100,7 +121,7 @@
            text-gray-400 hover:bg-dark-surface hover:text-white
        {% endif %} transition-colors">
 
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
                 </svg>
@@ -110,6 +131,7 @@
 
             <!-- Alimentação -->
             <a href="{% url 'nutrition:plan_list' %}"
+               {% if request.resolver_match.app_name == 'nutrition' %}aria-current="page"{% endif %}
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
        {% if request.resolver_match.app_name == 'nutrition' %}
            bg-brand-600/20 text-brand-400
@@ -117,7 +139,7 @@
            text-gray-400 hover:bg-dark-surface hover:text-white
        {% endif %} transition-colors">
 
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                 </svg>
@@ -126,10 +148,15 @@
 
             <!-- Histórico -->
             <a href="{% url 'workouts:history' %}"
+               {% if request.resolver_match.url_name == 'history' %}aria-current="page"{% endif %}
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-           text-gray-400 hover:bg-dark-surface hover:text-white transition-colors">
+       {% if request.resolver_match.url_name == 'history' %}
+           bg-brand-600/20 text-brand-400
+       {% else %}
+           text-gray-400 hover:bg-dark-surface hover:text-white
+       {% endif %} transition-colors">
 
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
@@ -138,27 +165,29 @@
 
         </nav>
 
-        <!-- User info bottom -->
+        <!-- Usuário (rodapé) -->
         <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-dark-border">
             <div class="flex items-center gap-3">
                 {% if user.photo %}
                     <a href="{% url 'accounts:profile' %}">
-                        <img src="{{ user.photo.url }}"
+                        <img src="{{ user.photo.url }}" alt="Foto de {{ user.get_full_name }}"
                              class="w-9 h-9 rounded-full object-cover ring-2 ring-dark-border">
                     </a>
                 {% else %}
                     <a href="{% url 'accounts:profile' %}"
-                       class="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-sm font-bold text-white">
+                       class="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-sm font-bold text-white"
+                       aria-label="Perfil de {{ user.get_full_name }}">
                         {{ user.first_name.0 }}{{ user.last_name.0 }}
                     </a>
                 {% endif %}
                 <div class="flex-1 min-w-0">
                     <a href="{% url 'accounts:profile' %}"
-                       class="text-sm font-medium text-white truncate">{{ user.get_full_name }}</a>
-                    <p class="text-xs text-gray-500">{{ user.email }}</p>
+                       class="text-sm font-medium text-white truncate block">{{ user.get_full_name }}</a>
+                    <p class="text-xs text-gray-500 truncate">{{ user.email }}</p>
                 </div>
-                <a href="{% url 'accounts:logout' %}" class="text-gray-500 hover:text-red-400 transition-colors">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <a href="{% url 'accounts:logout' %}" class="text-gray-500 hover:text-red-400 transition-colors"
+                   aria-label="Sair da conta">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                     </svg>
@@ -167,17 +196,18 @@
         </div>
     </aside>
 
-    <!-- Mobile header -->
+    <!-- Cabeçalho mobile -->
     <div class="lg:hidden fixed top-0 left-0 right-0 z-40 bg-dark-card/95 backdrop-blur border-b border-dark-border">
         <div class="flex items-center justify-between px-4 py-3">
-            <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')"
+            <button id="sidebar-toggle" type="button"
+                    aria-controls="sidebar" aria-expanded="false" aria-label="Abrir menu"
                     class="text-gray-400 hover:text-white">
-                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
             <span class="font-bold text-brand-400">CAN'T STOP</span>
-            <a href="{% url 'accounts:profile' %}">
+            <a href="{% url 'accounts:profile' %}" aria-label="Ver perfil">
                 <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold text-white">
                     {{ user.first_name.0 }}
                 </div>
@@ -185,7 +215,7 @@
         </div>
     </div>
 
-    <!-- Main content -->
+    <!-- Conteúdo principal -->
     <main class="flex-1 lg:ml-64 pt-14 lg:pt-0">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
             {% block content %}{% endblock %}
@@ -193,9 +223,48 @@
     </main>
 </div>
 
-<!-- Mobile overlay -->
-<div id="overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"
-     onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden')"></div>
+<!-- Overlay mobile -->
+<div id="overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden transition-opacity"></div>
+
+<script>
+    (function () {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+            document.body.classList.add('sidebar-open');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.setAttribute('aria-label', 'Fechar menu');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('sidebar-open');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleBtn.setAttribute('aria-label', 'Abrir menu');
+        }
+
+        toggleBtn.addEventListener('click', function () {
+            const isOpen = !sidebar.classList.contains('-translate-x-full');
+            isOpen ? closeSidebar() : openSidebar();
+        });
+
+        overlay.addEventListener('click', closeSidebar);
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeSidebar();
+        });
+
+        // Fecha o menu automaticamente ao redimensionar para desktop
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 1024) closeSidebar();
+        });
+    })();
+</script>
 
 {% block extra_js %}{% endblock %}
 </body>
