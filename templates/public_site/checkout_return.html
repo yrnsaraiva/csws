@@ -1,0 +1,61 @@
+{% extends 'public_site/base_public.html' %}
+
+{% block content %}
+{% include 'public_site/includes/navbar.html' %}
+
+<div class="min-h-screen flex items-center justify-center px-6"
+     style="background:var(--background); padding-top: 5rem;">
+
+    <div class="max-w-lg w-full text-center py-20 space-y-8">
+
+        <!-- Ícone animado -->
+        <svg class="mx-auto" width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="38" stroke="var(--primary)" stroke-width="1.5" opacity="0.3"/>
+            <circle cx="40" cy="40" r="30" stroke="var(--primary)" stroke-width="1"/>
+            <path style="stroke-dasharray:60;stroke-dashoffset:60;animation:checkDraw 0.5s 0.3s ease forwards;"
+                  d="M24 40 l12 12 l20-24"
+                  stroke="var(--primary)" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+
+        <div class="space-y-3">
+            <span class="section-label">Pagamento recebido</span>
+            <h1 class="section-heading text-4xl md:text-5xl">
+                Obrigado pela <em>tua confiança</em>
+            </h1>
+            <p class="font-body text-sm leading-relaxed max-w-sm mx-auto" style="color:var(--muted);">
+                O teu pagamento foi processado com sucesso. O personal trainer entrará em contacto em até
+                <strong style="color:var(--foreground);">24 horas</strong> para te dar acesso ao app e dar início ao teu plano.
+            </p>
+        </div>
+
+        <div class="p-5 text-left space-y-1" style="border:1px solid var(--border);background:var(--card);">
+            <p class="font-body text-xs font-semibold uppercase tracking-[0.15em] mb-3" style="color:var(--muted);">Próximos passos</p>
+            <div class="flex items-start gap-3 py-2" style="border-bottom:1px solid var(--border);">
+                <span class="font-display text-lg" style="color:var(--primary);">1</span>
+                <p class="font-body text-sm" style="color:var(--foreground);">Verifica o teu email, enviaremos uma confirmação com os detalhes da encomenda.</p>
+            </div>
+            <div class="flex items-start gap-3 py-2" style="border-bottom:1px solid var(--border);">
+                <span class="font-display text-lg" style="color:var(--primary);">2</span>
+                <p class="font-body text-sm" style="color:var(--foreground);">O personal trainer analisará o teu perfil e objectivos nas próximas horas.</p>
+            </div>
+            <div class="flex items-start gap-3 py-2">
+                <span class="font-display text-lg" style="color:var(--primary);">3</span>
+                <p class="font-body text-sm" style="color:var(--foreground);">Receberás as credenciais de acesso ao app de treino por email.</p>
+            </div>
+        </div>
+
+        <a href="{% url 'public_site:home' %}" class="btn-outline inline-flex">
+            Voltar ao início
+        </a>
+
+    </div>
+</div>
+
+<style>
+@keyframes checkDraw {
+    from { stroke-dashoffset: 60; }
+    to   { stroke-dashoffset: 0; }
+}
+</style>
+{% endblock %}

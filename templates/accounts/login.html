@@ -1,0 +1,101 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: 'hsl(66, 61%, 96%)',
+                            100: 'hsl(66, 61%, 90%)',
+                            200: 'hsl(66, 61%, 80%)',
+                            300: 'hsl(66, 61%, 68%)',
+                            400: 'hsl(66, 61%, 58%)',
+                            500: 'hsl(66, 61%, 49%)', // #B8C830 — cor principal
+                            600: 'hsl(66, 61%, 42%)',
+                            700: 'hsl(66, 61%, 35%)',
+                            800: 'hsl(66, 61%, 28%)',
+                            900: 'hsl(66, 61%, 20%)',
+                        },
+
+                        dark: {
+                            DEFAULT: 'hsl(0, 0%, 0%)',      // preto
+                            card: 'hsl(0, 0%, 7%)',      // card
+                            surface: 'hsl(0, 0%, 13%)',     // accent / hover
+                            border: 'hsl(0, 0%, 20%)',     // border
+                        },
+
+                        light: {
+                            DEFAULT: 'hsl(0, 0%, 100%)',    // branco
+                            card: 'hsl(0, 0%, 98%)',
+                            surface: 'hsl(0, 0%, 94%)',
+                            border: 'hsl(0, 0%, 88%)',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;500;600;700&display=swap");
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="h-full bg-dark flex items-center justify-center p-4">
+<div class="w-full max-w-sm">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+        <a href="{% url 'public_site:home' %}"
+           class="flex justify-center leading-tight cursor-pointer">
+            <img src="{% static 'img/05_icon_texto_verdebranco_fundo_preto_grande.png' %}"
+                    alt="Can't Stop Won't Stop"
+                    width="200">
+        </a>
+
+        <p class="text-sm text-gray-300 mt-5">
+            Acesse a sua conta
+        </p>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+
+        {% if form.errors %}
+            <div class="bg-red-600/10 border border-red-600/30 rounded-xl p-3">
+                <p class="text-sm text-red-400">Email ou senha incorretos. Tente novamente.</p>
+            </div>
+        {% endif %}
+
+        <div>
+            <label class="text-sm font-medium text-gray-300 mb-1.5 block">Email</label>
+            <input type="email" name="email" required autofocus
+                   class="w-full bg-dark-card border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
+                   placeholder="seu@email.com">
+        </div>
+
+        <div>
+            <label class="text-sm font-medium text-gray-300 mb-1.5 block">Senha</label>
+            <input type="password" name="password" required
+                   class="w-full bg-dark-card border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
+                   placeholder="••••••••">
+        </div>
+
+        <button type="submit"
+                class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 text-white font-semibold hover:from-brand-500 hover:to-brand-400 transition-all shadow-lg shadow-brand-600/25">
+            Entrar
+        </button>
+    </form>
+</div>
+</body>
+</html>

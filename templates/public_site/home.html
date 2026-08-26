@@ -1,0 +1,21 @@
+{% extends "public_site/base_public.html" %}
+
+{% block content %}
+    {% include "public_site/includes/navbar.html" %}
+    
+    <div id="page-home">
+
+        {% include "public_site/partials/hero.html" %}
+
+        {% include "public_site/partials/about.html" %}
+
+        {% include "public_site/partials/services.html" %}
+
+        {% include "public_site/partials/testimonials.html" %}
+
+        {% include "public_site/partials/cta.html" %}
+
+    </div><!-- end page-home -->
+    
+    {% include "public_site/includes/footer.html" %}
+{% endblock %}

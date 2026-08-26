@@ -1,0 +1,470 @@
+{% load static %}
+
+<style>
+    #navbar {
+        background: transparent;
+    }
+
+    #navbar.scrolled {
+        background: var(--background);
+        box-shadow: 0 1px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Language Switch */
+    .lang-switch {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        padding: 4px 2px;
+    }
+
+    .lang-switch span {
+        font-family: var(--font-body, inherit);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        transition: color 0.2s;
+    }
+
+    .lang-switch span.active {
+        color: var(--foreground);
+    }
+
+    .lang-switch span.inactive {
+        color: var(--muted);
+    }
+
+    .lang-toggle-track {
+        position: relative;
+        width: 32px;
+        height: 16px;
+        border-radius: 8px;
+        border: 1px solid rgba(240, 230, 210, 0.25);
+        background: rgba(240, 230, 210, 0.08);
+        transition: background 0.25s;
+        flex-shrink: 0;
+    }
+
+    .lang-toggle-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--primary, #b9c931);
+        transition: transform 0.25s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .lang-switch.en .lang-toggle-thumb {
+        transform: translateX(16px);
+    }
+
+    /* popup overlay hiding class – evita cliques acidentais */
+    .popup-hidden {
+        display: none !important;
+    }
+</style>
+
+<!-- ========== NAVBAR ========== -->
+<nav id="navbar" class="fixed top-0 left-0 right-0 py-3 z-50 transition-all duration-300">
+    <div class="max-w-6xl mx-auto px-8 flex items-center justify-between h-20">
+        <a href="{% url 'public_site:home' %}" class="inline-flex items-center gap-3 group cursor-pointer">
+            <img src="{% static 'img/05_icon_texto_verdebranco_fundo_preto_grande.png' %}" alt=""
+                 class="hidden lg:block" width="200">
+            <img src="{% static 'img/04_icone_verdebranco_fundo_preto.png' %}" alt=""
+                 class="lg:hidden" width="44">
+        </a>
+        <!-- Desktop links -->
+        <div class="hidden lg:flex items-center gap-10">
+            <a href="{% url 'public_site:home' %}"
+               class="text-[11px] font-body font-medium tracking-[0.2em] transition-colors" style="color:var(--muted);"
+               onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'"
+               data-i18n="nav_home">INÍCIO</a>
+            <a href="#sobre" class="text-[11px] font-body font-medium tracking-[0.2em] transition-colors"
+               style="color:var(--muted);" onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'"
+               data-i18n="nav_about">SOBRE</a>
+            <a href="#programas" class="text-[11px] font-body font-medium tracking-[0.2em] transition-colors"
+               style="color:var(--muted);" onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'"
+               data-i18n="nav_programs">TREINOS</a>
+            <a href="#depoimentos" class="text-[11px] font-body font-medium tracking-[0.2em] transition-colors"
+               style="color:var(--muted);" onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'"
+               data-i18n="nav_testimonials">DEPOIMENTOS</a>
+            <a href="#contato" class="text-[11px] font-body font-medium tracking-[0.2em] transition-colors"
+               style="color:var(--muted);" onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'"
+               data-i18n="nav_contact">CONTATO</a>
+        </div>
+
+        <div class="hidden lg:flex items-center gap-6">
+            <!-- Language Switch (acessível por teclado) -->
+            <button class="lang-switch" id="lang-switch-desktop" onclick="toggleLang()"
+                    role="switch" aria-checked="false" aria-label="Mudar para Inglês">
+                <span class="active" id="lbl-pt-desktop">PT</span>
+                <div class="lang-toggle-track">
+                    <div class="lang-toggle-thumb"></div>
+                </div>
+                <span class="inactive" id="lbl-en-desktop">EN</span>
+            </button>
+            <a href="{% url 'public_site:checkout' %}" class="btn-primary" data-i18n="nav_cta">Junta-te Já</a>
+        </div>
+
+        <!-- Mobile toggle -->
+        <div class="lg:hidden flex items-center gap-4">
+            <!-- Mobile Language Switch (acessível por teclado) -->
+            <button class="lang-switch" id="lang-switch-mobile" onclick="toggleLang()"
+                    role="switch" aria-checked="false" aria-label="Mudar para Inglês">
+                <span class="active" id="lbl-pt-mobile">PT</span>
+                <div class="lang-toggle-track">
+                    <div class="lang-toggle-thumb"></div>
+                </div>
+                <span class="inactive" id="lbl-en-mobile">EN</span>
+            </button>
+            <button id="menu-toggle" style="color:var(--foreground);" onclick="toggleMenu()">
+                <svg id="icon-menu" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                <svg id="icon-close" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <!-- Mobile menu -->
+    <div id="mobile-menu" style="border-top:1px solid var(--border);background:var(--background);"
+         class="lg:hidden px-8 py-8 space-y-5 hidden">
+        <a href="{% url 'public_site:home' %}"
+           class="block text-xs font-body font-medium tracking-[0.2em] transition-colors"
+           style="color:var(--muted);" data-i18n="nav_home">INÍCIO</a>
+        <a href="#sobre" onclick="toggleMenu()"
+           class="block text-xs font-body font-medium tracking-[0.2em] transition-colors"
+           style="color:var(--muted);" data-i18n="nav_about">SOBRE</a>
+        <a href="#programas" onclick="toggleMenu()"
+           class="block text-xs font-body font-medium tracking-[0.2em] transition-colors"
+           style="color:var(--muted);" data-i18n="nav_programs">TREINOS</a>
+        <a href="#depoimentos" onclick="toggleMenu()"
+           class="block text-xs font-body font-medium tracking-[0.2em] transition-colors"
+           style="color:var(--muted);" data-i18n="nav_testimonials">DEPOIMENTOS</a>
+        <a href="#contato" onclick="toggleMenu()"
+           class="block text-xs font-body font-medium tracking-[0.2em] transition-colors"
+           style="color:var(--muted);" data-i18n="nav_contact">CONTATO</a>
+        <a href="{% url 'public_site:checkout' %}" class="btn-primary w-full text-center" data-i18n="nav_cta">Junta-te
+            Já</a>
+    </div>
+</nav>
+
+<!-- ========== LANGUAGE PICKER POPUP ========== -->
+<div id="lang-popup-overlay"
+     style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);
+            display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.4s;">
+    <div style="background:var(--background);border:1px solid var(--border);padding:48px 40px;
+                max-width:360px;width:90%;text-align:center;position:relative;">
+        <!-- Logo mark -->
+        <a href="#">
+            <img src="{% static 'img/04_icone_verdebranco_fundo_preto.png' %}" alt="">
+        </a>
+
+        <h2 style="font-family:var(--font-display,inherit);font-weight:300;font-size:20px;
+                   letter-spacing:0.15em;text-transform:uppercase;color:var(--foreground);margin-bottom:8px;">
+            Choose your language
+        </h2>
+        <p style="font-size:11px;letter-spacing:0.12em;color:var(--muted);margin-bottom:32px;">
+            Escolha o seu idioma
+        </p>
+
+        <div style="display:flex;gap:12px;justify-content:center;">
+            <button onclick="pickLang('pt')"
+                    style="flex:1;padding:14px 0;border:1px solid var(--border);background:transparent;
+                           color:var(--foreground);font-size:11px;letter-spacing:0.25em;text-transform:uppercase;
+                           cursor:pointer;transition:all 0.25s;"
+                    onmouseover="this.style.background='var(--primary,#b9c931)';this.style.borderColor='var(--primary,#b9c931)';this.style.color='#000'"
+                    onmouseout="this.style.background='transparent';this.style.borderColor='var(--border)';this.style.color='var(--foreground)'">
+                🇵🇹 &nbsp;Português
+            </button>
+            <button onclick="pickLang('en')"
+                    style="flex:1;padding:14px 0;border:1px solid var(--border);background:transparent;
+                           color:var(--foreground);font-size:11px;letter-spacing:0.25em;text-transform:uppercase;
+                           cursor:pointer;transition:all 0.25s;"
+                    onmouseover="this.style.background='var(--primary,#b9c931)';this.style.borderColor='var(--primary,#b9c931)';this.style.color='#000'"
+                    onmouseout="this.style.background='transparent';this.style.borderColor='var(--border)';this.style.color='var(--foreground)'">
+                🇬🇧 &nbsp;English
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── Scroll effect ──────────────────────────────────────────
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+        navbar.classList.toggle('scrolled', window.scrollY > 50);
+    });
+
+    // ── Mobile menu ────────────────────────────────────────────
+    function toggleMenu() {
+        const menu = document.getElementById('mobile-menu');
+        const iconMenu = document.getElementById('icon-menu');
+        const iconClose = document.getElementById('icon-close');
+        menu.classList.toggle('hidden');
+        iconMenu.classList.toggle('hidden');
+        iconClose.classList.toggle('hidden');
+    }
+
+    // ── i18n (objecto global) ──────────────────────────────────
+    window.TRANSLATIONS = {
+        pt: {
+            // Navbar / Home
+            nav_home: 'INÍCIO',
+            nav_about: 'SOBRE',
+            nav_programs: 'TREINOS',
+            nav_testimonials: 'DEPOIMENTOS',
+            nav_contact: 'CONTATO',
+            nav_cta: 'Junta-te Já',
+            hero_title_1: 'Cant Stop,',
+            hero_title_em: "Wont Stop",
+            hero_sub: 'Hoje eu serei melhor que ontem.',
+            hero_btn_primary: 'Escolher o Meu Plano',
+            hero_btn_outline: 'Conheça o Método',
+            hero_scroll: 'Descubra mais',
+            about_quote: '"Mais do que correr atrás de um sonho, é nunca desistir dele!"',
+            about_label: 'Conheça O BROTO',
+            about_title_1: 'Treino a sério para quem',
+            about_title_em: 'não desiste',
+            about_p1: 'Há mais de 8 anos dedico-me a transformar corpos, formar atletas e ajudar pessoas a tornarem-se mais fortes em Maputo. Para mim, o treino nunca foi apenas sobre séries e repetições. É sobre disciplina, consistência e construir uma mentalidade que não pára.',
+            about_p2: 'Acredito que cada pessoa tem um ponto de partida e um objectivo diferente. Por isso, trabalho de forma próxima e personalizada, combinando força, condicionamento e nutrição de performance para criar planos que façam sentido para o teu nível, os teus objectivos e a tua rotina.',
+            about_stat1_label: 'Atletas treinados',
+            about_stat2_label: 'Anos de experiência',
+            about_stat3_label: 'Taxa de resultados',
+            services_label: 'Treinos',
+            services_title_1: 'Uma abordagem',
+            services_title_em: 'completa de performance',
+            svc1_title: 'Nutrição de Performance',
+            svc1_desc: 'Plano alimentar ajustado ao teu treino e objectivo.',
+            svc2_title: 'Força & Condicionamento',
+            svc2_desc: 'Treinos de alta intensidade adaptados ao teu nível.',
+            svc3_title: 'Personal Coaching',
+            svc3_desc: 'Acompanhamento constante: técnica, progressão de carga, recuperação e mentalidade.',
+            services_cta: 'Quero Começar',
+            test_label: 'Depoimentos',
+            test_title_1: 'Histórias de',
+            test_title_em: 'quem não parou',
+            cta_label: 'Próximo Passo',
+            cta_title_1: 'Pronto para a tua',
+            cta_title_em: 'transformação?',
+            cta_desc: 'Escolhe o plano que encaixa na tua rotina e objectivos. Treino + nutrição + acompanhamento do coach, tudo num só plano, com acesso imediato ao app.',
+            cta_btn: 'Ver planos',
+            footer_sub: 'Personal Training',
+            footer_copy: '© 2026 Cant Stop Wont Stop',
+
+            // Booking
+            booking_back: 'Voltar',
+            booking_step1_label: 'Serviço',
+            booking_step2_label: 'Dados',
+            booking_step1_title: 'Passo 1',
+            booking_step1_heading: 'Escolhe o teu <em class="italic">treino</em>',
+            booking_single_label: 'Sessões Avulsas',
+            booking_online_title: 'Avaliação Online',
+            booking_online_desc: 'Sessão por videochamada, treino e plano à distância',
+            booking_consultorio_title: 'No Ginásio',
+            booking_consultorio_desc: 'Sessão presencial no nosso espaço de treino',
+            booking_domicilio_title: 'Ao Domicílio',
+            booking_domicilio_desc: 'Treino personalizado na tua residência',
+            booking_xpress_title: 'Avaliação Xpress',
+            booking_xpress_desc: 'Sessão rápida de 15 minutos',
+            booking_plans_label: 'Planos de Treino',
+            booking_basico_title: 'Plano Básico',
+            booking_basico_desc: '4 sessões mensais · Plano de treino básico · Suporte por email',
+            booking_standard_badge: 'Popular',
+            booking_standard_title: 'Plano Standard',
+            booking_standard_desc: '8 sessões (4/mês) · Plano detalhado · Suporte WhatsApp · Material de apoio',
+            booking_premium_title: 'Plano Premium',
+            booking_premium_desc: '12 sessões (4/mês) · Suporte prioritário 24/7 · Material exclusivo · Sessão bónus',
+            booking_step2_title: 'Passo 2',
+            booking_step2_heading: 'Teus <em class="italic">dados</em>',
+            booking_summary_service: 'Serviço',
+            booking_summary_total: 'Total',
+            booking_form_name: 'Nome completo',
+            booking_form_email: 'Email',
+            booking_form_phone: 'Telefone',
+            booking_form_date: 'Data',
+            booking_form_time: 'Hora',
+            booking_btn_back: 'Voltar',
+            booking_btn_next: 'Continuar'
+        },
+        en: {
+            // Navbar / Home
+            nav_home: 'HOME',
+            nav_about: 'ABOUT',
+            nav_programs: 'TRAINING',
+            nav_testimonials: 'TESTIMONIALS',
+            nav_contact: 'CONTACT',
+            nav_cta: 'Join Now',
+            hero_title_1: 'Cant Stop,',
+            hero_title_em: 'Wont Stop',
+            hero_sub: 'Today I will be better than yesterday.',
+            hero_btn_primary: 'Choose My Plan',
+            hero_btn_outline: 'Discover the Method',
+            hero_scroll: 'Discover more',
+            about_quote: '"More than chasing a dream, it\'s about never giving up on it!"',
+            about_label: 'Meet O BROTO',
+            about_title_1: 'Serious training for people who',
+            about_title_em: 'never quit',
+            about_p1: 'For over 8 years, I\'ve been helping people build stronger bodies, stronger minds, and become better versions of themselves in Maputo. For me, training has always been about more than sets and reps, it\'s about discipline, consistency, strength, and developing a mindset that never stops.',
+            about_p2: 'I believe there\'s no one-size-fits-all approach to training. That\'s why I work closely with each person, combining strength, conditioning, and performance nutrition to create a plan built around your level, your goals, and your routine.',
+            about_stat1_label: 'Athletes trained',
+            about_stat2_label: 'Years of experience',
+            about_stat3_label: 'Results rate',
+            services_label: 'Training',
+            services_title_1: 'A complete',
+            services_title_em: 'performance approach',
+            svc1_title: 'Performance Nutrition',
+            svc1_desc: 'A meal plan built around your training and goals.',
+            svc2_title: 'Strength & Conditioning',
+            svc2_desc: 'High-intensity training adapted to your level.',
+            svc3_title: 'Personal Coaching',
+            svc3_desc: 'Constant support: technique, load progression, recovery, and mindset.',
+            services_cta: 'I Want to Start',
+            test_label: 'Testimonials',
+            test_title_1: 'Stories of',
+            test_title_em: 'people who never stopped',
+            cta_label: 'Next Step',
+            cta_title_1: 'Ready for your',
+            cta_title_em: 'transformation?',
+            cta_desc: 'Choose the plan that fits your routine and goals. Training + nutrition + coach support, all in one plan, with immediate access to the app.',
+            cta_btn: 'See Plans',
+            footer_sub: 'Personal Training',
+            footer_copy: '© 2026 Cant Stop Wont Stop',
+
+            // Booking
+            booking_back: 'Back',
+            booking_step1_label: 'Service',
+            booking_step2_label: 'Details',
+            booking_step1_title: 'Step 1',
+            booking_step1_heading: 'Choose your <em class="italic">training</em>',
+            booking_single_label: 'Single Sessions',
+            booking_online_title: 'Online Assessment',
+            booking_online_desc: 'Video call session — training and plan from anywhere',
+            booking_consultorio_title: 'At the Gym',
+            booking_consultorio_desc: 'In-person session at our training space',
+            booking_domicilio_title: 'Home Visit',
+            booking_domicilio_desc: 'Personalized training at your home',
+            booking_xpress_title: 'Xpress Assessment',
+            booking_xpress_desc: 'Quick 15-minute session',
+            booking_plans_label: 'Training Plans',
+            booking_basico_title: 'Basic Plan',
+            booking_basico_desc: '4 monthly sessions · Basic training plan · Email support',
+            booking_standard_badge: 'Popular',
+            booking_standard_title: 'Standard Plan',
+            booking_standard_desc: '8 sessions (4/month) · Detailed plan · WhatsApp support · Supporting material',
+            booking_premium_title: 'Premium Plan',
+            booking_premium_desc: '12 sessions (4/month) · Priority support 24/7 · Exclusive material · Bonus session',
+            booking_step2_title: 'Step 2',
+            booking_step2_heading: 'Your <em class="italic">details</em>',
+            booking_summary_service: 'Service',
+            booking_summary_total: 'Total',
+            booking_form_name: 'Full name',
+            booking_form_email: 'Email',
+            booking_form_phone: 'Phone',
+            booking_form_date: 'Date',
+            booking_form_time: 'Time',
+            booking_btn_back: 'Back',
+            booking_btn_next: 'Continue'
+        }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'pt';
+
+    function applyLang(lang) {
+        currentLang = lang;
+        localStorage.setItem('lang', lang);
+        const t = window.TRANSLATIONS[lang];
+        if (!t) return;
+
+        // Texto simples
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (t[key] !== undefined) el.textContent = t[key];
+        });
+
+        // Texto com HTML
+        document.querySelectorAll('[data-i18n-html]').forEach(el => {
+            const key = el.getAttribute('data-i18n-html');
+            if (t[key] !== undefined) el.innerHTML = t[key];
+        });
+
+        // Actualizar switches de idioma
+        document.querySelectorAll('.lang-switch').forEach(sw => {
+            const isEn = lang === 'en';
+            sw.classList.toggle('en', isEn);
+            sw.setAttribute('aria-checked', isEn ? 'true' : 'false');
+            sw.setAttribute('aria-label', isEn ? 'Mudar para Português' : 'Switch to English');
+
+            const ptLabel = sw.querySelector('[id^="lbl-pt"]');
+            const enLabel = sw.querySelector('[id^="lbl-en"]');
+            if (ptLabel && enLabel) {
+                if (lang === 'pt') {
+                    ptLabel.classList.add('active');
+                    ptLabel.classList.remove('inactive');
+                    enLabel.classList.add('inactive');
+                    enLabel.classList.remove('active');
+                } else {
+                    enLabel.classList.add('active');
+                    enLabel.classList.remove('inactive');
+                    ptLabel.classList.add('inactive');
+                    ptLabel.classList.remove('active');
+                }
+            }
+        });
+    }
+
+    function toggleLang() {
+        applyLang(currentLang === 'pt' ? 'en' : 'pt');
+    }
+
+    // Popup de selecção de idioma
+    function pickLang(lang) {
+        applyLang(lang);
+        localStorage.setItem('lang_chosen', '1');
+        const overlay = document.getElementById('lang-popup-overlay');
+        overlay.style.opacity = '0';
+
+        const onTransitionEnd = () => {
+            overlay.style.display = 'none';
+            overlay.removeEventListener('transitionend', onTransitionEnd);
+        };
+        overlay.addEventListener('transitionend', onTransitionEnd);
+
+        setTimeout(() => {
+            if (overlay.style.opacity === '0') overlay.style.display = 'none';
+        }, 500);
+    }
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById('lang-popup-overlay');
+        const alreadyChosen = localStorage.getItem('lang_chosen');
+
+        overlay.style.display = 'none';
+
+        if (alreadyChosen) {
+            applyLang(currentLang);
+        } else {
+            applyLang('pt');
+            overlay.style.display = 'flex';
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.style.opacity = '1';
+                });
+            });
+        }
+    });
+</script>

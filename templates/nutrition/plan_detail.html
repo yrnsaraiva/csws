@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ plan.name }} - Alimentação{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'nutrition:plan_list' %}" class="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-3 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Voltar
+    </a>
+    <h1 class="text-2xl font-bold text-white">{{ plan.name }}</h1>
+    {% if plan.description %}
+        <p class="text-gray-400 text-sm mt-1">{{ plan.description }}</p>
+    {% endif %}
+</div>
+
+<!-- Macro Targets -->
+{% if plan.target_calories %}
+<div class="bg-dark-card rounded-2xl border border-dark-border p-5 mb-6">
+    <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-4">Metas Diárias</h3>
+    <div class="grid grid-cols-4 gap-3">
+        <div class="text-center">
+            <div class="relative w-16 h-16 mx-auto mb-2">
+                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" class="text-dark-surface" stroke-width="3"/>
+                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" class="text-brand-400" stroke-width="3" stroke-dasharray="{{ calories_pct }}, 100"/>
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">🔥</span>
+            </div>
+            <p class="text-lg font-bold text-white">{{ plan.target_calories }}</p>
+            <p class="text-[10px] text-gray-500 uppercase">Calorias</p>
+        </div>
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-2 rounded-full bg-blue-600/20 flex items-center justify-center">
+                <span class="text-xl font-bold text-blue-400">P</span>
+            </div>
+            <p class="text-lg font-bold text-white">{{ plan.target_protein|floatformat:0 }}g</p>
+            <p class="text-[10px] text-gray-500 uppercase">Proteína</p>
+        </div>
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-2 rounded-full bg-amber-600/20 flex items-center justify-center">
+                <span class="text-xl font-bold text-amber-400">C</span>
+            </div>
+            <p class="text-lg font-bold text-white">{{ plan.target_carbs|floatformat:0 }}g</p>
+            <p class="text-[10px] text-gray-500 uppercase">Carbos</p>
+        </div>
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-2 rounded-full bg-red-600/20 flex items-center justify-center">
+                <span class="text-xl font-bold text-red-400">G</span>
+            </div>
+            <p class="text-lg font-bold text-white">{{ plan.target_fat|floatformat:0 }}g</p>
+            <p class="text-[10px] text-gray-500 uppercase">Gordura</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Meals -->
+<div class="space-y-4">
+    {% for meal in plan.meals.all %}
+    <div class="bg-dark-card rounded-2xl border border-dark-border overflow-hidden">
+        <!-- Meal header -->
+        <div class="flex items-center justify-between p-4 border-b border-dark-border/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-dark-surface flex items-center justify-center text-lg">
+                    {% if meal.meal_type == 'breakfast' %}🌅
+                    {% elif meal.meal_type == 'morning_snack' %}🍎
+                    {% elif meal.meal_type == 'lunch' %}🍽️
+                    {% elif meal.meal_type == 'afternoon_snack' %}🥜
+                    {% elif meal.meal_type == 'dinner' %}🌙
+                    {% elif meal.meal_type == 'supper' %}🍵
+                    {% elif meal.meal_type == 'pre_workout' %}⚡
+                    {% elif meal.meal_type == 'post_workout' %}💪
+                    {% endif %}
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-white">{{ meal.get_meal_type_display }}</p>
+                    {% if meal.time %}
+                        <p class="text-xs text-gray-500">{{ meal.time|time:"H:i" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-sm font-bold text-white">{{ meal.total_calories|floatformat:0 }} kcal</p>
+            </div>
+        </div>
+
+        <!-- Meal items -->
+        <div class="divide-y divide-dark-border/30">
+            {% for item in meal.items.all %}
+            <div class="flex items-center justify-between px-4 py-3">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-white">{{ item.food.name }}</p>
+                    <p class="text-xs text-gray-500">{{ item.quantity_grams|floatformat:0 }}g</p>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
+                    <span class="text-blue-400">P {{ item.protein|floatformat:1 }}</span>
+                    <span class="text-amber-400">C {{ item.carbs|floatformat:1 }}</span>
+                    <span class="text-red-400">G {{ item.fat|floatformat:1 }}</span>
+                    <span class="text-white font-medium w-14 text-right">{{ item.calories|floatformat:0 }} kcal</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if meal.notes %}
+        <div class="px-4 py-3 bg-dark-surface/30">
+            <p class="text-xs text-gray-400">📝 {{ meal.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

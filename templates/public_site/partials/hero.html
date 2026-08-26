@@ -1,0 +1,26 @@
+{% load static %}
+<!-- HERO -->
+<section class="relative min-h-screen flex items-center justify-center text-center overflow-hidden">
+    <div class="absolute inset-0">
+        <img src="{% static 'img/hero-fitness.png' %}" alt="Cant Stop Wont Stop training" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0" style="background:rgba(10,10,10,0.62);"></div>
+    </div>
+    <div class="relative z-10 max-w-4xl mx-auto px-6 space-y-8">
+        <h1 class="hero-title section-heading text-5xl md:text-7xl lg:text-8xl uppercase"
+            style="color:var(--foreground);">
+            <span data-i18n="hero_title_1">Cant Stop,</span> <em data-i18n="hero_title_em">Wont Stop</em>
+        </h1>
+        <p class="hero-sub font-body uppercase font-semibold text-sm max-w-xl mx-auto leading-relaxed tracking-[0.2em]"
+           style="color:rgba(245,245,240,0.75);" data-i18n="hero_sub">
+            Hoje e serei melhor que ontem.
+        </p>
+        <div class="hero-btns flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <a href="{% url 'public_site:checkout' %}" class="btn-primary" data-i18n="hero_btn_primary">Escolher o Meu Plano</a>
+            <a href="#sobre" class="btn-outline" data-i18n="hero_btn_outline">Conheça o Método</a>
+        </div>
+    </div>
+    <div class="hero-scroll absolute bottom-10 inset-x-0 flex flex-col items-center gap-3">
+        <span class="text-[10px] font-body tracking-[0.3em] uppercase" style="color:rgba(245,245,240,0.4);" data-i18n="hero_scroll">Descubra mais</span>
+        <div class="w-px h-10" style="background:rgba(245,245,240,0.2);"></div>
+    </div>
+</section>

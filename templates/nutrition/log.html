@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Histórico Alimentar{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Histórico Alimentar</h1>
+    <p class="text-gray-400 text-sm mt-1">Registo das suas refeições</p>
+</div>
+
+{% if logs_by_date %}
+<div class="space-y-6">
+    {% for date_str, data in logs_by_date.items %}
+    <div>
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-white">{{ data.date|date:"l, d M Y" }}</h3>
+            <span class="text-xs px-2.5 py-1 rounded-full {% if data.completed_count == data.total_count %}bg-brand-600/20 text-brand-400{% else %}bg-dark-surface text-gray-400{% endif %}">
+                {{ data.completed_count }}/{{ data.total_count }} refeições
+            </span>
+        </div>
+        <div class="space-y-2">
+            {% for log in data.meals %}
+            <div class="bg-dark-card rounded-xl p-4 border border-dark-border flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-dark-surface flex items-center justify-center text-lg">
+                        {% if log.meal.meal_type == 'breakfast' %}🌅
+                        {% elif log.meal.meal_type == 'lunch' %}🍽️
+                        {% elif log.meal.meal_type == 'dinner' %}🌙
+                        {% else %}🥤{% endif %}
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">{{ log.meal.get_meal_type_display }}</p>
+                        {% if log.notes %}
+                            <p class="text-xs text-gray-500 mt-0.5">{{ log.notes|truncatewords:10 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if log.completed %}
+                    <span class="w-8 h-8 rounded-full bg-brand-600/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </span>
+                {% else %}
+                    <span class="w-8 h-8 rounded-full bg-dark-surface flex items-center justify-center">
+                        <div class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
+                    </span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="flex items-center justify-center gap-2 mt-8">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 rounded-xl bg-dark-card border border-dark-border text-sm text-gray-300 hover:text-white hover:border-brand-500 transition-all">← Anterior</a>
+    {% endif %}
+    <span class="px-4 py-2 text-sm text-gray-500">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 rounded-xl bg-dark-card border border-dark-border text-sm text-gray-300 hover:text-white hover:border-brand-500 transition-all">Próxima →</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-16">
+    <div class="w-16 h-16 rounded-2xl bg-dark-card border border-dark-border flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    </div>
+    <p class="text-gray-400 font-medium">Sem registos alimentares</p>
+</div>
+{% endif %}
+{% endblock %}

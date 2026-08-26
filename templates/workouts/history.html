@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Histórico{% endblock %}
+
+{% block content %}
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-white">Histórico de Treinos</h1>
+        <p class="text-gray-400 text-sm mt-1">Todos os seus treinos realizados</p>
+    </div>
+
+    {% if logs %}
+        <div class="space-y-3">
+            {% for log in logs %}
+                <a href="{% url 'workouts:log_detail' log.pk %}"
+                   class="flex flex-col sm:flex-row sm:items-center gap-4 bg-dark-card rounded-xl p-4 border border-dark-border hover:border-brand-500/50 transition-all group">
+
+                    <!-- Top row (mobile) -->
+                    <div class="flex items-center gap-4 w-full">
+
+                        <!-- Date badge -->
+                        <div class="w-14 h-14 rounded-xl bg-dark-surface flex flex-col items-center justify-center flex-shrink-0 group-hover:bg-brand-600/20 transition-colors">
+                            <span class="text-xs text-gray-500 uppercase leading-none">{{ log.date|date:"M" }}</span>
+                            <span class="text-xl font-bold text-white leading-tight">{{ log.date|date:"d" }}</span>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-white group-hover:text-brand-400 transition-colors truncate">
+                                {{ log.workout_day.name }}
+                            </p>
+                            <p class="text-xs text-gray-500 mt-0.5 truncate">
+                                {{ log.workout_day.plan.name }}
+                            </p>
+                        </div>
+
+                        <!-- Arrow (mobile right) -->
+                        <svg class="w-5 h-5 text-gray-600 group-hover:text-brand-400 transition-colors flex-shrink-0 sm:hidden"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+
+                    <!-- Bottom row (mobile) / Right side (desktop) -->
+                    <div class="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end w-full sm:w-auto text-right">
+                        {% if log.duration_minutes %}
+                            <p class="text-sm font-medium text-white">{{ log.duration_minutes }}min</p>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 mt-0.5">{{ log.date|date:"d/m/Y" }}</p>
+                    </div>
+
+                    <!-- Arrow desktop -->
+                    <svg class="hidden sm:block w-5 h-5 text-gray-600 group-hover:text-brand-400 transition-colors flex-shrink-0"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+
+                </a>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <div class="flex items-center justify-center gap-2 mt-8">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}"
+                       class="px-4 py-2 rounded-xl bg-dark-card border border-dark-border text-sm text-gray-300 hover:text-white hover:border-brand-500 transition-all">
+                        ← Anterior
+                    </a>
+                {% endif %}
+                <span class="px-4 py-2 text-sm text-gray-500">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}"
+                       class="px-4 py-2 rounded-xl bg-dark-card border border-dark-border text-sm text-gray-300 hover:text-white hover:border-brand-500 transition-all">
+                        Próxima →
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+
+    {% else %}
+        <div class="text-center py-16">
+            <div class="w-16 h-16 rounded-2xl bg-dark-card border border-dark-border flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <p class="text-gray-400 font-medium">Nenhum treino registrado</p>
+            <p class="text-sm text-gray-600 mt-1">Complete o seu primeiro treino para ver o histórico</p>
+        </div>
+    {% endif %}
+{% endblock %}

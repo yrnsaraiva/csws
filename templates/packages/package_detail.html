@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ client_package.package.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'packages:my_packages' %}" class="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-3 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Meus Pacotes
+    </a>
+    <div class="flex items-start justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">{{ client_package.package.name }}</h1>
+            <p class="text-gray-400 text-sm mt-1">Atribuído por {{ client_package.assigned_by.get_full_name }}</p>
+        </div>
+        <span class="px-3 py-1.5 rounded-full text-xs font-semibold
+            {% if client_package.status == 'active' %}bg-brand-600/20 text-brand-400
+            {% elif client_package.status == 'paused' %}bg-yellow-600/20 text-yellow-400
+            {% elif client_package.status == 'completed' %}bg-blue-600/20 text-blue-400
+            {% else %}bg-red-600/20 text-red-400{% endif %}">
+            {{ client_package.get_status_display }}
+        </span>
+    </div>
+</div>
+
+<!-- Period -->
+<div class="bg-dark-card rounded-2xl border border-dark-border p-5 mb-6">
+    <div class="grid grid-cols-3 gap-4 text-center">
+        <div>
+            <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Início</p>
+            <p class="text-lg font-semibold text-white">{{ client_package.start_date|date:"d/m/Y" }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Fim</p>
+            <p class="text-lg font-semibold text-white">{{ client_package.end_date|date:"d/m/Y" }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Duração</p>
+            <p class="text-lg font-semibold text-white">{{ client_package.package.duration_days }} dias</p>
+        </div>
+    </div>
+</div>
+
+<!-- Plans -->
+<div class="space-y-4">
+    {% if client_package.package.workout_plan %}
+    <a href="{% url 'workouts:plan_detail' client_package.package.workout_plan.pk %}" class="flex items-center gap-4 bg-dark-card rounded-2xl p-5 border border-dark-border hover:border-brand-500/50 transition-all group">
+        <div class="w-14 h-14 rounded-xl bg-brand-600/20 flex items-center justify-center flex-shrink-0">
+            <span class="text-2xl">🏋️</span>
+        </div>
+        <div class="flex-1">
+            <h3 class="font-semibold text-white group-hover:text-brand-400 transition-colors">Plano de Treino</h3>
+            <p class="text-sm text-gray-400">{{ client_package.package.workout_plan.name }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ client_package.package.workout_plan.duration_weeks }} semanas • {{ client_package.package.workout_plan.days.count }} dias</p>
+        </div>
+        <svg class="w-5 h-5 text-gray-600 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+    {% endif %}
+
+    {% if client_package.package.nutrition_plan %}
+    <a href="{% url 'nutrition:plan_detail' client_package.package.nutrition_plan.pk %}" class="flex items-center gap-4 bg-dark-card rounded-2xl p-5 border border-dark-border hover:border-brand-500/50 transition-all group">
+        <div class="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+            <span class="text-2xl">🍽️</span>
+        </div>
+        <div class="flex-1">
+            <h3 class="font-semibold text-white group-hover:text-brand-400 transition-colors">Plano Alimentar</h3>
+            <p class="text-sm text-gray-400">{{ client_package.package.nutrition_plan.name }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ client_package.package.nutrition_plan.target_calories }} kcal/dia • {{ client_package.package.nutrition_plan.meals.count }} refeições</p>
+        </div>
+        <svg class="w-5 h-5 text-gray-600 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+    {% endif %}
+</div>
+
+{% if client_package.package.description %}
+<div class="mt-6 bg-dark-card rounded-2xl border border-dark-border p-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Descrição</h3>
+    <p class="text-sm text-gray-300">{{ client_package.package.description }}</p>
+</div>
+{% endif %}
+{% endblock %}

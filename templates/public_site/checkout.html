@@ -1,0 +1,572 @@
+{% extends 'public_site/base_public.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    #page-home { display: none !important; }
+    #page-booking { display: none !important; }
+
+    /* ---- Step indicator ---- */
+    .step-dot {
+        width: 2rem; height: 2rem; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.7rem; font-weight: 600;
+        transition: background 0.3s, color 0.3s;
+    }
+    .step-line {
+        height: 1px; width: 5rem;
+        transition: background 0.3s;
+    }
+
+    /* ---- Package cards ---- */
+    .pkg-card {
+        position: relative;
+        border: 1px solid var(--border);
+        background: var(--card);
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+        padding: 2rem;
+    }
+    .pkg-card:hover { border-color: rgba(185,201,49,0.5); }
+    .pkg-card.selected {
+        border-color: var(--primary);
+        background: rgba(185,201,49,0.08);
+    }
+    .pkg-card input[type="radio"] {
+        position: absolute; top: 1.25rem; right: 1.25rem;
+        accent-color: var(--primary);
+        width: 1rem; height: 1rem;
+    }
+    .pkg-badge {
+        position: absolute; top: -0.75rem; left: 50%; transform: translateX(-50%);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.6rem; font-weight: 700;
+        letter-spacing: 0.15em; text-transform: uppercase;
+        background: var(--primary); color: #0a0a0a;
+        padding: 0.2rem 0.85rem;
+        white-space: nowrap;
+    }
+    .pkg-feature {
+        display: flex; align-items: flex-start; gap: 0.6rem;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.7rem; color: var(--muted);
+        line-height: 1.5;
+    }
+    .pkg-feature svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ---- Form inputs ---- */
+    .f-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        color: var(--foreground);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.8rem;
+        outline: none;
+        transition: border-color 0.2s;
+        -webkit-appearance: none;
+    }
+    .f-input:focus { border-color: var(--primary); }
+    .f-input::placeholder { color: var(--muted); }
+    .f-label {
+        display: block;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.65rem; font-weight: 600;
+        letter-spacing: 0.15em; text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.5rem;
+    }
+
+    /* ---- Payment methods ---- */
+    .pay-btn {
+        display: flex; align-items: center; gap: 0.75rem;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 0.9rem 1.2rem;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+        width: 100%;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.75rem; font-weight: 500;
+        color: var(--foreground);
+        letter-spacing: 0.05em;
+    }
+    .pay-btn:hover { border-color: rgba(185,201,49,0.5); }
+    .pay-btn.selected { border-color: var(--primary); background: rgba(185,201,49,0.08); }
+    .pay-dot {
+        width: 0.9rem; height: 0.9rem; border-radius: 50%;
+        border: 1.5px solid var(--border);
+        flex-shrink: 0;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .pay-btn.selected .pay-dot {
+        border-color: var(--primary);
+        background: var(--primary);
+        box-shadow: inset 0 0 0 2px var(--card);
+    }
+
+    /* ---- Summary box ---- */
+    .summary-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        padding: 1.5rem;
+    }
+    .summary-row {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.75rem; color: var(--muted);
+        padding: 0.35rem 0;
+    }
+    .summary-row.total {
+        border-top: 1px solid var(--border);
+        margin-top: 0.5rem; padding-top: 0.75rem;
+        font-weight: 600; color: var(--foreground);
+    }
+
+    /* ---- Success state ---- */
+    #checkout-success { display: none; }
+
+    /* ---- M-Pesa field ---- */
+    #mpesa-field, #ref-field { display: none; }
+
+    /* ---- Animations ---- */
+    @keyframes checkDraw {
+        from { stroke-dashoffset: 60; }
+        to { stroke-dashoffset: 0; }
+    }
+    .check-anim {
+        stroke-dasharray: 60;
+        stroke-dashoffset: 60;
+        animation: checkDraw 0.5s 0.3s ease forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    
+<div id="page-checkout" class="min-h-screen" style="background:var(--background);">
+
+    <!-- ========== HEADER ========== -->
+    <div class="sticky top-0 z-40 backdrop-blur-md py-3"
+         style="border-bottom:1px solid var(--border);background:rgba(10,10,10,0.92);">
+        <div class="max-w-5xl mx-auto px-6 flex items-center justify-between h-14">
+            <a href="{% url 'public_site:home' %}"
+               class="flex items-center gap-2 transition-colors"
+               style="color:var(--muted);"
+               onmouseover="this.style.color='var(--foreground)'"
+               onmouseout="this.style.color='var(--muted)'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5M12 5l-7 7 7 7"/>
+                </svg>
+                <span class="text-xs font-body font-medium tracking-[0.15em] uppercase">Voltar</span>
+            </a>
+
+            <!-- Steps -->
+            <div id="step-indicator" class="flex items-center gap-2">
+                <div class="step-dot" id="dot-1" style="background:var(--primary);color:#0a0a0a;">1</div>
+                <div class="step-line" id="line-1" style="background:var(--border);"></div>
+                <div class="step-dot" id="dot-2" style="background:hsl(0,0%,15%);color:var(--muted);">2</div>
+            </div>
+
+            <div class="gap-2">
+                <img src="{% static 'img/04_icone_verdebranco_fundo_preto.png' %}" alt="" width="50">
+            </div>
+        </div>
+        <!-- Step labels -->
+        <div class="flex justify-center gap-24 mt-1 pb-1 text-[10px] font-body uppercase tracking-[0.15em]">
+            <span id="lbl-1" style="color:var(--foreground);">Pacote</span>
+            <span id="lbl-2" style="color:var(--muted);">Dados</span>
+        </div>
+    </div>
+
+    <div class="max-w-5xl mx-auto px-6 py-12 pb-24">
+
+        <!-- ===================== STEP 1 — CHOOSE PACKAGE ===================== -->
+        <div id="step1">
+            <div class="text-center max-w-xl mx-auto mb-12">
+                <span class="section-label">Passo 1 de 2</span>
+                <h1 class="section-heading text-3xl md:text-4xl lg:text-5xl">
+                    Escolhe o teu <em>plano</em>
+                </h1>
+                <p class="font-body text-sm mt-4" style="color:var(--muted);">
+                    Plano de treino + nutrição com acompanhamento completo do personal trainer.
+                </p>
+            </div>
+
+            <div class="grid gap-6 max-w-4xl mx-auto"
+                 style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+
+                {% for pkg in packages %}
+                <div class="pkg-card{% if pkg.is_featured %} pkg-card--featured{% endif %}"
+                     data-id="{{ pkg.id }}"
+                     data-name="{{ pkg.name }}"
+                     data-price="{{ pkg.price|floatformat:0 }}"
+                     data-days="{{ pkg.duration_days }}"
+                     {% if pkg.is_featured %}style="box-shadow:0 0 0 1px rgba(185,201,49,0.35);"{% endif %}>
+
+                    {% if pkg.is_featured %}
+                        <span class="pkg-badge">Mais Popular</span>
+                    {% endif %}
+
+                    <input type="radio" name="package" value="{{ pkg.id }}"/>
+
+                    <div class="space-y-4">
+                        <!-- Duration + name -->
+                        <div>
+                            <p class="font-body text-xs font-semibold uppercase tracking-[0.15em]"
+                               style="color:var(--muted);">{{ pkg.duration_days }} dias</p>
+                            <h3 class="font-display text-2xl font-light mt-1" style="color:var(--foreground);">
+                                {{ pkg.name }}
+                            </h3>
+                        </div>
+
+                        <!-- Price -->
+                        <p class="font-display text-4xl font-light" style="color:var(--foreground);">
+                            {{ pkg.price|floatformat:0 }}
+                            <span class="text-lg" style="color:var(--muted);">MT</span>
+                        </p>
+
+                        <!-- Description as a single feature line -->
+                        <div class="space-y-2 pt-1" style="border-top:1px solid var(--border);">
+                            <div class="pkg-feature">
+                                <svg class="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style="color:var(--primary);"
+                                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                {{ pkg.description }}
+                            </div>
+                            <!-- Always-included features -->
+                            <div class="pkg-feature">
+                                <svg class="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style="color:var(--primary);"
+                                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Plano de treino + nutrição
+                            </div>
+                            <div class="pkg-feature">
+                                <svg class="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style="color:var(--primary);"
+                                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Acesso ao app · {{ pkg.duration_days }} dias
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="font-body text-sm col-span-3 text-center" style="color:var(--muted);">
+                    Nenhum pacote disponível de momento.
+                </p>
+                {% endfor %}
+
+            </div>
+
+            <div class="flex justify-end max-w-4xl mx-auto mt-10">
+                <button id="btn-1-next" onclick="goStep(2)" class="btn-primary opacity-40 cursor-not-allowed" disabled>
+                    Continuar
+                    <svg class="ml-2 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- ===================== STEP 2 — CLIENT DATA ===================== -->
+        <div id="step2" style="display:none;">
+            <div class="text-center max-w-xl mx-auto mb-12">
+                <span class="section-label">Passo 2 de 2</span>
+                <h2 class="section-heading text-3xl md:text-4xl">
+                    Os teus <em>dados</em>
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-5 gap-8 max-w-4xl mx-auto">
+
+                <!-- Form -->
+                <div class="md:col-span-3 space-y-5">
+                    <div>
+                        <label class="f-label">Nome completo</label>
+                        <input id="f-name" type="text" placeholder="Seu nome completo" class="f-input"/>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="f-label">Email</label>
+                            <input id="f-email" type="email" placeholder="seu@email.com" class="f-input"/>
+                        </div>
+                        <div>
+                            <label class="f-label">Telefone</label>
+                            <input id="f-phone" type="tel" placeholder="+258 84 000 0000" class="f-input"/>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="f-label">Objectivo principal</label>
+                        <select id="f-goal" class="f-input" style="color:var(--foreground);">
+                            <option value="" style="background:hsl(0,0%,8%);">Seleccione um objectivo</option>
+                            <option value="Hipertrofia" style="background:hsl(0,0%,8%);">Ganhar massa muscular</option>
+                            <option value="Perda de peso" style="background:hsl(0,0%,8%);">Perder peso / cutting</option>
+                            <option value="Manutenção" style="background:hsl(0,0%,8%);">Manutenção / saúde geral</option>
+                            <option value="Performance" style="background:hsl(0,0%,8%);">Melhorar performance</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="f-label">Notas adicionais <span style="color:var(--muted);font-weight:400;">(opcional)</span></label>
+                        <textarea id="f-notes" rows="3" placeholder="Lesões, restrições alimentares, horários preferidos..."
+                                  class="f-input" style="resize:none;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Summary sidebar -->
+                <div class="md:col-span-2 space-y-4">
+                    <p class="text-xs font-body font-semibold uppercase tracking-[0.15em]" style="color:var(--muted);">Resumo</p>
+                    <div class="summary-box">
+                        <div class="summary-row">
+                            <span>Pacote</span>
+                            <span id="s2-name" style="color:var(--foreground);">—</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Duração</span>
+                            <span id="s2-days" style="color:var(--foreground);">—</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Total</span>
+                            <span id="s2-price" class="font-display text-2xl" style="color:var(--primary);">—</span>
+                        </div>
+                    </div>
+                    <p class="text-xs font-body leading-relaxed" style="color:var(--muted);">
+                        Após o pagamento, receberás acesso ao app e o personal trainer entrará em contacto em até 24h.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between max-w-4xl mx-auto mt-10">
+                <button onclick="goStep(1)" class="btn-outline">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5M12 5l-7 7 7 7"/>
+                    </svg>
+                    Voltar
+                </button>
+                <button id="btn-2-next" onclick="submitOrder()" class="btn-primary opacity-40 cursor-not-allowed" disabled>
+                    Confirmar
+                    <svg class="ml-2 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- ===================== SUCCESS ===================== -->
+        <div id="checkout-success" class="max-w-2xl mx-auto text-center py-12">
+            <svg class="mx-auto mb-8" width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="40" cy="40" r="38" stroke="var(--primary)" stroke-width="1.5" opacity="0.3"/>
+                <circle cx="40" cy="40" r="30" stroke="var(--primary)" stroke-width="1"/>
+                <path class="check-anim" d="M24 40 l12 12 l20-24" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+
+            <span class="section-label">Encomenda recebida</span>
+            <h2 class="section-heading text-3xl md:text-5xl mb-4">
+                Obrigado, <em class="italic" id="success-name">—</em>
+            </h2>
+            <p class="font-body text-sm leading-relaxed mb-10 max-w-md mx-auto" style="color:var(--muted);">
+                A tua encomenda foi registada com sucesso. O personal trainer entrará em contacto em até <strong style="color:var(--foreground);">24 horas</strong> para confirmar o pagamento e dar-te acesso ao app.
+            </p>
+
+            <div class="summary-box max-w-sm mx-auto text-left mb-10">
+                <div class="summary-row"><span>Ref. encomenda</span><span id="success-ref" style="color:var(--foreground);font-family:'Montserrat';letter-spacing:0.1em;">—</span></div>
+                <div class="summary-row"><span>Pacote</span><span id="success-pkg" style="color:var(--foreground);">—</span></div>
+                <div class="summary-row total"><span>Total</span><span id="success-price" class="font-display text-2xl" style="color:var(--primary);">—</span></div>
+            </div>
+
+            <a href="{% url 'public_site:home' %}" class="btn-outline">Voltar ao início</a>
+        </div>
+
+    </div>
+</div><!-- end page-checkout -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+
+let state = {
+    step: 1,
+    packageId: null,
+    packageName: null,
+    packagePrice: null,
+    packageDays: null,
+    payMethod: 'mpesa',
+};
+
+/* ---- Package card selection ---- */
+document.querySelectorAll('.pkg-card').forEach(card => {
+    card.addEventListener('click', () => {
+        document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        card.querySelector('input[type="radio"]').checked = true;
+
+        state.packageId    = card.dataset.id;
+        state.packageName  = card.dataset.name;
+        state.packagePrice = card.dataset.price;
+        state.packageDays  = card.dataset.days;
+
+        setBtn('btn-1-next', true);
+    });
+});
+
+function setBtn(id, enabled) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.style.opacity  = enabled ? '1' : '0.4';
+    btn.style.cursor   = enabled ? 'pointer' : 'not-allowed';
+}
+
+/* ---- Step navigation ---- */
+function goStep(n) {
+    if (n === 2 && !state.packageId) return;
+    if (n === 3 && !step2Valid()) return;
+
+    // Hide all steps
+    [1,2].forEach(i => {
+        const el = document.getElementById('step' + i);
+        if (el) el.style.display = 'none';
+    });
+
+    document.getElementById('step' + n).style.display = 'block';
+    state.step = n;
+    updateStepUI(n);
+    fillSummaries();
+    window.scrollTo(0, 0);
+}
+
+function updateStepUI(n) {
+    for (let i = 1; i <= 2; i++) {
+        const dot = document.getElementById('dot-' + i);
+        const lbl = document.getElementById('lbl-' + i);
+        if (i < n) {
+            dot.style.background = 'var(--primary)';
+            dot.style.color = '#0a0a0a';
+            dot.innerHTML = '✓';
+        } else if (i === n) {
+            dot.style.background = 'var(--primary)';
+            dot.style.color = '#0a0a0a';
+            dot.textContent = i;
+            lbl.style.color = 'var(--foreground)';
+        } else {
+            dot.style.background = 'hsl(0,0%,15%)';
+            dot.style.color = 'var(--muted)';
+            dot.textContent = i;
+            lbl.style.color = 'var(--muted)';
+        }
+    }
+    document.getElementById('line-1').style.background = n > 1 ? 'var(--primary)' : 'var(--border)';
+}
+
+/* ---- Step 2 form validation ---- */
+function step2Valid() {
+    return document.getElementById('f-name').value.trim() &&
+           document.getElementById('f-email').value.trim() &&
+           document.getElementById('f-phone').value.trim() &&
+           document.getElementById('f-goal').value;
+}
+
+['f-name','f-email','f-phone','f-goal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => setBtn('btn-2-next', step2Valid()));
+    if (el && el.tagName === 'SELECT') el.addEventListener('change', () => setBtn('btn-2-next', step2Valid()));
+});
+
+/* ---- Fill summaries ---- */
+function fillSummaries() {
+    const name  = state.packageName || '—';
+    const days  = state.packageDays ? state.packageDays + ' dias' : '—';
+    const price = state.packagePrice ? state.packagePrice + ' MT' : '—';
+    const client = document.getElementById('f-name')?.value.trim() || '—';
+
+    setText('s2-name', name); setText('s2-days', days); setText('s2-price', price);
+    setText('s3-name', name); setText('s3-days', days); setText('s3-price', price);
+    setText('s3-client', client);
+    setText('mpesa-amount', price); setText('ref-amount', price);
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ---- Payment method ---- */
+function selectPay(btn, method) {
+    document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.payMethod = method;
+
+    document.getElementById('mpesa-field').style.display = (method === 'mpesa' || method === 'emola') ? 'block' : 'none';
+    document.getElementById('ref-field').style.display   = method === 'transferencia' ? 'block' : 'none';
+
+    // Update label
+    const codeLabel = document.querySelector('#mpesa-field .f-label');
+    if (codeLabel) codeLabel.textContent = method === 'emola' ? 'Código de confirmação e-Mola' : 'Código de confirmação M-Pesa';
+}
+
+// Show M-Pesa by default on page load
+document.getElementById('mpesa-field').style.display = 'block';
+
+/* ---- Submit order ---- */
+function submitOrder() {
+    const btn = document.getElementById('btn-2-next');
+    btn.disabled = true;
+    btn.textContent = 'A processar…';
+    btn.style.opacity = '0.7';
+
+    const payload = {
+        package_id:   state.packageId,
+        client_name:  document.getElementById('f-name').value.trim(),
+        client_email: document.getElementById('f-email').value.trim(),
+        client_phone: document.getElementById('f-phone').value.trim(),
+        goal:         document.getElementById('f-goal').value,
+        notes:        document.getElementById('f-notes').value.trim(),
+        amount:       state.packagePrice,
+    };
+
+    fetch('/checkout/order/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN,
+        },
+        body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.checkout_url) {
+            // Redireciona para o checkout da PaySuite (M-Pesa, e-Mola ou cartão)
+            window.location.href = data.checkout_url;
+        } else {
+            alert('Erro: ' + (data.error || 'Tente novamente.'));
+            btn.disabled = false;
+            btn.textContent = 'Confirmar Encomenda';
+            btn.style.opacity = '1';
+        }
+    })
+    .catch(() => {
+        alert('Erro de ligação. Verifique a sua internet e tente novamente.');
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Encomenda';
+        btn.style.opacity = '1';
+    });
+}
+
+function showSuccess(ref) {
+    [1,2].forEach(i => {
+        const el = document.getElementById('step' + i);
+        if (el) el.style.display = 'none';
+    });
+    document.getElementById('step-indicator').style.opacity = '0.3';
+
+    setText('success-name',  document.getElementById('f-name').value.trim().split(' ')[0]);
+    setText('success-ref',   ref || '-');
+    setText('success-pkg',   state.packageName || '-');
+    setText('success-price', (state.packagePrice || '-') + ' MT');
+
+    document.getElementById('checkout-success').style.display = 'block';
+    window.scrollTo(0, 0);
+}
+</script>
+{% endblock %}

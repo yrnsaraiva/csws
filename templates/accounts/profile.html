@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Meu Perfil{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Meu Perfil</h1>
+</div>
+
+<!-- Profile Card -->
+<div class="bg-dark-card rounded-2xl border border-dark-border overflow-hidden mb-6">
+    <div class="bg-gradient-to-br from-brand-700 to-brand-900 h-24 relative">
+        <div class="absolute -bottom-10 left-6">
+            {% if user.photo %}
+                <img src="{{ user.photo.url }}" class="w-20 h-20 rounded-2xl object-cover ring-4 ring-dark-card shadow-xl">
+            {% else %}
+                <div class="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center text-2xl font-bold text-white ring-4 ring-dark-card shadow-xl">
+                    {{ user.first_name.0 }}{{ user.last_name.0 }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="pt-14 px-6 pb-6">
+        <div class="flex items-start justify-between">
+            <div>
+                <h2 class="text-xl font-bold text-white">{{ user.get_full_name }}</h2>
+                <p class="text-sm text-gray-400">{{ user.email }}</p>
+                {% if user.phone %}
+                    <p class="text-sm text-gray-500 mt-1">📱 {{ user.phone }}</p>
+                {% endif %}
+            </div>
+            <a href="{% url 'accounts:profile_edit' %}" class="px-4 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm font-medium text-gray-300 hover:text-white hover:border-brand-500 transition-all">
+                Editar
+            </a>
+        </div>
+
+        {% if user.bio %}
+            <p class="text-sm text-gray-400 mt-4">{{ user.bio }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="bg-dark-card rounded-2xl p-5 border border-dark-border text-center">
+        <p class="text-3xl font-bold text-white">{{ total_workouts }}</p>
+        <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">Treinos</p>
+    </div>
+    <div class="bg-dark-card rounded-2xl p-5 border border-dark-border text-center">
+        <p class="text-3xl font-bold text-white">{{ total_minutes }}</p>
+        <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">Minutos</p>
+    </div>
+    <div class="bg-dark-card rounded-2xl p-5 border border-dark-border text-center">
+        <p class="text-3xl font-bold text-white">{{ member_since|date:"M Y" }}</p>
+        <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider">Membro desde</p>
+    </div>
+</div>
+
+<!-- Client Data -->
+{% if profile %}
+<div class="bg-dark-card rounded-2xl border border-dark-border p-6">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Dados Físicos</h3>
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <p class="text-xs text-gray-500">Altura</p>
+            <p class="text-lg font-semibold text-white">{{ profile.height_cm|default:"—" }} cm</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500">Peso</p>
+            <p class="text-lg font-semibold text-white">{{ profile.weight_kg|default:"—" }} kg</p>
+        </div>
+        <div class="col-span-2">
+            <p class="text-xs text-gray-500">Objetivo</p>
+            <p class="text-sm text-white mt-1">{{ profile.goal|default:"Não definido" }}</p>
+        </div>
+        {% if profile.notes %}
+        <div class="col-span-2">
+            <p class="text-xs text-gray-500">Observações</p>
+            <p class="text-sm text-gray-400 mt-1">{{ profile.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

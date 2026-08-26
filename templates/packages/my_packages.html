@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Meus Pacotes{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Meus Pacotes</h1>
+    <p class="text-gray-400 text-sm mt-1">Pacotes de coaching atribuídos</p>
+</div>
+
+{% if active_package %}
+<!-- Active Package Highlight -->
+<div class="bg-gradient-to-br from-brand-700 to-brand-900 rounded-2xl p-6 mb-6 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-40 h-40 bg-brand-500/10 rounded-full -translate-y-12 translate-x-12"></div>
+    <div class="relative z-10">
+        <span class="inline-block px-2.5 py-1 bg-white/20 rounded-full text-xs font-medium text-white mb-3">Pacote Ativo</span>
+        <h2 class="text-xl font-bold text-white mb-1">{{ active_package.package.name }}</h2>
+        <p class="text-brand-200 text-sm mb-4">
+            {{ active_package.start_date|date:"d/m/Y" }} — {{ active_package.end_date|date:"d/m/Y" }}
+        </p>
+
+        <div class="flex gap-3">
+            {% if active_package.package.workout_plan %}
+            <a href="{% url 'workouts:plan_detail' active_package.package.workout_plan.pk %}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors">
+                🏋️ Ver Treinos
+            </a>
+            {% endif %}
+            {% if active_package.package.nutrition_plan %}
+            <a href="{% url 'nutrition:plan_detail' active_package.package.nutrition_plan.pk %}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors">
+                🍽️ Ver Alimentação
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- All Packages -->
+<div class="space-y-3">
+    {% for cp in client_packages %}
+    {% if cp != active_package %}
+    <div class="bg-dark-card rounded-xl p-5 border border-dark-border">
+        <div class="flex items-start justify-between">
+            <div>
+                <h3 class="font-semibold text-white">{{ cp.package.name }}</h3>
+                <p class="text-xs text-gray-500 mt-1">{{ cp.start_date|date:"d/m/Y" }} — {{ cp.end_date|date:"d/m/Y" }}</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-xs font-medium
+                {% if cp.status == 'active' %}bg-brand-600/20 text-brand-400
+                {% elif cp.status == 'paused' %}bg-yellow-600/20 text-yellow-400
+                {% elif cp.status == 'completed' %}bg-blue-600/20 text-blue-400
+                {% else %}bg-red-600/20 text-red-400{% endif %}">
+                {{ cp.get_status_display }}
+            </span>
+        </div>
+
+        {% if cp.package.description %}
+            <p class="text-sm text-gray-500 mt-2">{{ cp.package.description|truncatewords:20 }}</p>
+        {% endif %}
+
+        <div class="flex items-center gap-4 mt-3 text-xs text-gray-500">
+            {% if cp.package.workout_plan %}
+                <span>🏋️ {{ cp.package.workout_plan.name }}</span>
+            {% endif %}
+            {% if cp.package.nutrition_plan %}
+                <span>🍽️ {{ cp.package.nutrition_plan.name }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% if not client_packages %}
+<div class="text-center py-16">
+    <div class="w-16 h-16 rounded-2xl bg-dark-card border border-dark-border flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    </div>
+    <p class="text-gray-400 font-medium">Nenhum pacote atribuído</p>
+    <p class="text-sm text-gray-600 mt-1">Contacte o seu coach para adquirir um pacote</p>
+</div>
+{% endif %}
+{% endblock %}

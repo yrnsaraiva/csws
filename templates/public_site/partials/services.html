@@ -1,0 +1,58 @@
+<!-- SERVICES -->
+<section class="py-24 md:py-36" id="programas" style="background:var(--card);">
+    <div class="max-w-6xl mx-auto px-8">
+        <div class="reveal text-center max-w-2xl mx-auto mb-16">
+            <span class="section-label" data-i18n="services_label">Treinos</span>
+            <h2 class="section-heading text-4xl md:text-5xl lg:text-6xl">
+                <span data-i18n="services_title_1">Uma abordagem</span> <em data-i18n="services_title_em">completa de performance</em>
+            </h2>
+        </div>
+        <div class="grid md:grid-cols-3 max-w-5xl mx-auto" style="gap:1px;background:var(--border);">
+            <!-- Card 1 -->
+            <div class="reveal p-10 md:p-12 space-y-6 transition-colors duration-200 group"
+                 style="background:var(--card);" onmouseover="this.style.background='hsl(0,0%,12%)'"
+                 onmouseout="this.style.background='var(--card)'">
+                <svg class="h-8 w-8" style="color:var(--primary);" xmlns="http://www.w3.org/2000/svg" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 3c-1.5 3-4.5 4-7 5 0 7 3 11 7 13 4-2 7-6 7-13-2.5-1-5.5-2-7-5z"/>
+                </svg>
+                <h3 class="font-display text-2xl tracking-wide" style="color:var(--foreground);"
+                    data-i18n="svc1_title">Nutrição de Performance</h3>
+                <p class="font-body text-sm leading-relaxed" style="color:var(--muted);"
+                   data-i18n="svc1_desc">Plano alimentar ajustado ao teu treino e objectivo. Sem dietas genéricas, combustível certo para cada fase.</p>
+            </div>
+            <!-- Card 2 -->
+            <div class="reveal reveal-delay-1 p-10 md:p-12 space-y-6 transition-colors duration-200"
+                 style="background:var(--card);" onmouseover="this.style.background='hsl(0,0%,12%)'"
+                 onmouseout="this.style.background='var(--card)'">
+                <svg class="h-8 w-8" style="color:var(--primary);" xmlns="http://www.w3.org/2000/svg" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M6.5 6.5h11M6.5 17.5h11M12 3v18M4 10h4M16 10h4M4 14h4M16 14h4"/>
+                </svg>
+                <h3 class="font-display text-2xl tracking-wide" style="color:var(--foreground);"
+                    data-i18n="svc2_title">Força & Condicionamento</h3>
+                <p class="font-body text-sm leading-relaxed" style="color:var(--muted);"
+                   data-i18n="svc2_desc">Treinos de alta intensidade adaptados ao teu nível.</p>
+            </div>
+            <!-- Card 3 -->
+            <div class="reveal reveal-delay-2 p-10 md:p-12 space-y-6 transition-colors duration-200"
+                 style="background:var(--card);" onmouseover="this.style.background='hsl(0,0%,12%)'"
+                 onmouseout="this.style.background='var(--card)'">
+                <svg class="h-8 w-8" style="color:var(--primary);" xmlns="http://www.w3.org/2000/svg" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                </svg>
+                <h3 class="font-display text-2xl tracking-wide" style="color:var(--foreground);"
+                    data-i18n="svc3_title">Personal Coaching</h3>
+                <p class="font-body text-sm leading-relaxed" style="color:var(--muted);"
+                   data-i18n="svc3_desc">Acompanhamento constante: técnica, progressão de carga, recuperação e mentalidade. Sem plateaus, só evolução.</p>
+            </div>
+        </div>
+        <div class="reveal text-center mt-16">
+            <a href="{% url 'public_site:checkout' %}" class="btn-primary" data-i18n="services_cta">Quero Começar</a>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,51 @@
+{% load static %}
+<!-- ABOUT -->
+<section class="py-24 md:py-36" id="sobre">
+    <div class="max-w-6xl mx-auto px-8">
+        <div class="reveal text-center max-w-3xl mx-auto mb-20">
+            <p class="font-display text-2xl md:text-3xl font-normal leading-relaxed normal-case"
+               style="color:rgba(245,245,240,0.9);" data-i18n="about_quote">
+                "Mais do que correr atrás de um sonho é nunca desistir dele!"
+            </p>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+            <div class="reveal relative">
+                <img src="{% static 'img/coach-portrait.jpg' %}" alt="Cant Stop Wont Stop - Personal Trainer"
+                     class="w-full object-cover object-top" style="height:550px;"
+                     loading="lazy"/>
+                <div class="absolute bottom-0 left-0 right-0 h-32"
+                     style="background:linear-gradient(to top, rgba(10,10,10,0.85), transparent);"></div>
+            </div>
+            <div class="reveal reveal-delay-1 space-y-6">
+                <span class="section-label" data-i18n="about_label">Conheça a CW</span>
+                <h2 class="section-heading text-4xl md:text-5xl">
+                    <span data-i18n="about_title_1">Treino a sério para quem</span> <em data-i18n="about_title_em">não desiste</em>
+                </h2>
+                <div class="space-y-4 font-body text-sm leading-relaxed" style="color:var(--muted);">
+                    <p data-i18n="about_p1">Há mais de 8 anos a formar atletas e a transformar corpos em Maputo. O nosso
+                        trabalho vai além de séries e repetições, é sobre construir disciplina, força e uma
+                        mentalidade que não pára.</p>
+                    <p data-i18n="about_p2">Com personal trainers certificados e um método que combina força, condicionamento
+                        e nutrição de performance, cada plano é ajustado ao teu nível, aos teus objectivos e à tua rotina.</p>
+                </div>
+                <div class="grid grid-cols-3 gap-8 pt-6" style="border-top:1px solid var(--border);">
+                    <div>
+                        <p class="font-display text-3xl" style="color:var(--primary);">300+</p>
+                        <p class="text-[10px] font-body tracking-[0.15em] uppercase mt-1" style="color:var(--muted);"
+                           data-i18n="about_stat1_label">Atletas treinados</p>
+                    </div>
+                    <div>
+                        <p class="font-display text-3xl" style="color:var(--primary);">8+</p>
+                        <p class="text-[10px] font-body tracking-[0.15em] uppercase mt-1" style="color:var(--muted);"
+                           data-i18n="about_stat2_label">Anos de experiência</p>
+                    </div>
+                    <div>
+                        <p class="font-display text-3xl" style="color:var(--primary);">98%</p>
+                        <p class="text-[10px] font-body tracking-[0.15em] uppercase mt-1" style="color:var(--muted);"
+                           data-i18n="about_stat3_label">Taxa de resultados</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
