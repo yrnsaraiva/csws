@@ -84,7 +84,7 @@ def activate_client_package(order):
 
     # ── 4. ClientPackage ─────────────────────────────────────────────────────
     start_date = date.today()
-    end_date   = start_date + timedelta(days=order.package.duration_days)
+    end_date = start_date + timedelta(days=order.package.duration_days)
 
     ClientPackage.objects.create(
         client=user,
@@ -111,10 +111,10 @@ def _send_welcome_email(user, order, raw_password=None):
     """
     Envia email com credenciais de acesso (conta nova) ou confirmação (re-compra).
     """
-    app_url = getattr(settings, 'APP_URL', 'https://app.jonia.co.mz')
+    app_url = getattr(settings, 'APP_URL', 'https://app.cantstop.co.mz')
 
     if raw_password:
-        subject = f'Bem-vindo(a) à Jonia, {user.first_name}!'
+        subject = f'Bem-vindo(a) à can\'t stop, {user.first_name}!'
         message = f"""Olá {user.first_name},
 
 O seu pagamento foi confirmado e a sua conta foi criada com sucesso!
@@ -145,13 +145,13 @@ Validade: {order.package.duration_days} dias adicionais
 Continue a aceder ao app com as suas credenciais habituais:
   URL: {app_url}
 
-Equipa Jonia
+Equipa can't stop
 """
 
     send_mail(
         subject=subject,
         message=message,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@jonia.co.mz'),
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@cantstop.co.mz'),
         recipient_list=[user.email],
         fail_silently=False,
     )

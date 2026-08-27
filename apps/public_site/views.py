@@ -28,32 +28,76 @@ def home(request):
 # Helpers
 # ---------------------------------------------------------------------------
 
-PAYSUITE_BASE = 'https://paysuite.tech/api/v1'
-PAYSUITE_HEADERS = {
-    'Authorization': f'Bearer {settings.PAYSUITE_API_KEY}',
+DEBITOPAY_BASE = 'https://gyqoaningqhurhvdugne.supabase.co/functions/v1'
+DEBITOPAY_HEADERS = {
+    'Authorization': f'Bearer {settings.DEBITOPAY_API_KEY}',
     'Content-Type': 'application/json',
     'Accept': 'application/json',
 }
 
+# Métodos suportados no checkout. mpesa/emola/mkesh exigem "phone" e são
+# mobile money (mpesa confirma sync, emola/mkesh confirmam via webhook).
+# visa_mastercard/payfast devolvem um checkout_url (Hosted Checkout) e
+# exigem "return_url".
+DEBITOPAY_MOBILE_MONEY_METHODS = {'mpesa', 'emola', 'mkesh'}
+DEBITOPAY_HOSTED_CHECKOUT_METHODS = {'visa_mastercard', 'payfast'}
+DEBITOPAY_SUPPORTED_METHODS = DEBITOPAY_MOBILE_MONEY_METHODS | DEBITOPAY_HOSTED_CHECKOUT_METHODS
 
-def _paysuite_create_payment(order):
-    """Cria um payment request na PaySuite e devolve (checkout_url, paysuite_id)."""
+
+def _debitopay_create_payment(order, payment_method, phone=None):
+    """
+    Cria um payment na Debito Pay via /payment-orchestrator e devolve o
+    JSON de resposta completo (o formato varia consoante payment_method).
+    """
     payload = {
+        'action': 'process',
+        'payment_method': payment_method,
+        'merchant_id': settings.DEBITOPAY_MERCHANT_ID,
+        'wallet_code': settings.DEBITOPAY_WALLET_CODE,
         'amount': float(order.amount),
-        'reference': ''.join(c for c in order.ref if c.isalnum()),
-        'description': f'Jonia - {order.package.name}'[:125],
-        'return_url': settings.PAYSUITE_RETURN_URL,
-        'callback_url': settings.PAYSUITE_WEBHOOK_URL,
+        'currency': getattr(settings, 'DEBITOPAY_CURRENCY', 'MZN'),
+        'source': 'gateway',
+        'source_id': order.ref,
+        'customer_name': order.client_name,
+        'customer_email': order.client_email,
+        'customer_phone': order.client_phone,
     }
+
+    if payment_method in DEBITOPAY_MOBILE_MONEY_METHODS:
+        if not phone:
+            raise ValueError('Número de telefone obrigatório para mobile money.')
+        payload['phone'] = phone
+    elif payment_method in DEBITOPAY_HOSTED_CHECKOUT_METHODS:
+        payload['return_url'] = settings.DEBITOPAY_RETURN_URL
+    else:
+        raise ValueError(f'Método de pagamento não suportado: {payment_method}')
+
     response = http_requests.post(
-        f'{PAYSUITE_BASE}/payments',
-        headers=PAYSUITE_HEADERS,
+        f'{DEBITOPAY_BASE}/payment-orchestrator',
+        headers=DEBITOPAY_HEADERS,
         json=payload,
         timeout=10,
     )
     response.raise_for_status()
-    data = response.json()['data']
-    return data['checkout_url'], data['id']
+    data = response.json()
+
+    if not data.get('success'):
+        raise http_requests.RequestException(data.get('error', 'Erro desconhecido na Debito Pay'))
+
+    return data
+
+
+def _verify_debitopay_signature(request):
+    """Valida a assinatura HMAC-SHA256 do webhook (header X-Webhook-Signature)."""
+    signature = request.headers.get('X-Webhook-Signature', '')
+    if not signature:
+        return False
+    expected = hmac.new(
+        settings.DEBITOPAY_WEBHOOK_SECRET.encode('utf-8'),
+        request.body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 
 # ---------------------------------------------------------------------------
@@ -96,14 +140,19 @@ def checkout_view(request):
 
 
 # ---------------------------------------------------------------------------
-# 2. Criar encomenda + redirecionar para PaySuite
+# 2. Criar encomenda + iniciar pagamento na Debito Pay
 # ---------------------------------------------------------------------------
 
 @require_http_methods(['POST'])
 def create_order(request):
     """
-    Recebe os dados do checkout, cria o Order com status 'pending',
-    chama a PaySuite e devolve o checkout_url para o frontend redirecionar.
+    Recebe os dados do checkout, cria o Order com status 'pending' e chama a
+    Debito Pay. O comportamento depende do payment_method escolhido:
+
+    - mpesa: confirmação síncrona. Se success, activamos o pacote já aqui.
+    - emola / mkesh: assíncrono, fica 'pending' até o webhook confirmar.
+    - visa_mastercard / payfast: devolvemos checkout_url para o frontend
+      redirecionar para o Hosted Checkout da Debito Pay.
     """
     try:
         body = json.loads(request.body)
@@ -114,10 +163,17 @@ def create_order(request):
         client_phone = body.get('client_phone', '').strip()
         goal = body.get('goal', '')
         notes = body.get('notes', '')
+        payment_method = body.get('payment_method', 'mpesa').strip().lower()
 
         if not all([package_id, client_name, client_email, client_phone, goal]):
             return JsonResponse(
                 {'success': False, 'error': 'Campos obrigatórios em falta.'},
+                status=400,
+            )
+
+        if payment_method not in DEBITOPAY_SUPPORTED_METHODS:
+            return JsonResponse(
+                {'success': False, 'error': 'Método de pagamento não suportado.'},
                 status=400,
             )
 
@@ -129,7 +185,7 @@ def create_order(request):
                 status=404,
             )
 
-        # Cria o Order localmente antes de ir à PaySuite
+        # Cria o Order localmente antes de ir à Debito Pay
         order = Order.objects.create(
             ref=f'JN{uuid.uuid4().hex[:6].upper()}',
             package=package,
@@ -142,15 +198,55 @@ def create_order(request):
             status='pending',
         )
 
-        # Cria o payment request na PaySuite
-        checkout_url, paysuite_id = _paysuite_create_payment(order)
+        # Cria o payment na Debito Pay
+        data = _debitopay_create_payment(order, payment_method, phone=client_phone)
 
-        # Guarda o ID PaySuite para cruzar com o webhook
-        order.paysuite_id = paysuite_id
+        # NOTA: reaproveitamos os campos paysuite_id / paysuite_transaction_id
+        # que já existiam no modelo para guardar o payment_id / referência da
+        # Debito Pay, para não obrigar a uma migração. Considera renomeá-los
+        # (ex.: debitopay_payment_id) numa migração futura.
+        order.paysuite_id = data.get('payment_id', '')
         order.save(update_fields=['paysuite_id'])
 
-        return JsonResponse({'success': True, 'checkout_url': checkout_url})
+        if payment_method == 'mpesa':
+            # Confirmação síncrona
+            if data.get('status') == 'success':
+                Order.objects.filter(pk=order.pk, status='pending').update(
+                    status='paid',
+                    paysuite_transaction_id=data.get('transactionId', ''),
+                )
+                order.refresh_from_db()
+                activate_client_package(order)
+                return JsonResponse({
+                    'success': True,
+                    'status': 'paid',
+                    'reference': data.get('reference', ''),
+                })
+            else:
+                order.status = 'failed'
+                order.save(update_fields=['status'])
+                return JsonResponse(
+                    {'success': False, 'error': 'Pagamento M-Pesa não confirmado.'},
+                    status=402,
+                )
 
+        elif payment_method in ('emola', 'mkesh'):
+            # Assíncrono — aguardar webhook payment.completed
+            return JsonResponse({
+                'success': True,
+                'status': 'pending',
+                'awaiting_confirmation': True,
+                'reference': data.get('reference', ''),
+            })
+
+        else:  # visa_mastercard / payfast — Hosted Checkout
+            return JsonResponse({
+                'success': True,
+                'checkout_url': data.get('checkout_url'),
+            })
+
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
     except http_requests.RequestException as e:
         return JsonResponse(
             {'success': False, 'error': f'Erro ao contactar gateway de pagamento: {e}'},
@@ -163,61 +259,64 @@ def create_order(request):
 
 
 # ---------------------------------------------------------------------------
-# 3. Página de retorno (após pagamento no site PaySuite)
+# 3. Página de retorno (após pagamento cartão / PayFast no Hosted Checkout)
 # ---------------------------------------------------------------------------
 
 def checkout_return(request):
     """
-    PaySuite redireciona o cliente aqui após o pagamento.
+    A Debito Pay redireciona o cliente aqui após o pagamento (cartão/PayFast),
+    devolvendo ?status=success ou ?status=failed na query string.
     A validação real é feita no webhook — esta página apenas agradece.
     """
     return render(request, 'public_site/checkout_return.html')
 
 
 # ---------------------------------------------------------------------------
-# 4. Webhook PaySuite
+# 4. Webhook Debito Pay
 # ---------------------------------------------------------------------------
 
 @csrf_exempt
 @require_http_methods(['POST'])
-def paysuite_webhook(request):
+def debitopay_webhook(request):
     """
-    Recebe eventos da PaySuite (payment.success / payment.failed).
-    Verifica a assinatura HMAC-SHA256 antes de processar.
+    Recebe eventos da Debito Pay (payment.completed / payment.failed /
+    payment.refunded / payment.chargeback).
+    Verifica a assinatura HMAC-SHA256 (header X-Webhook-Signature) antes de
+    processar, conforme documentação da Debito Pay.
     """
-    payload = request.body
-    # Nota: a PaySuite não envia o header X-Webhook-Signature actualmente.
-    # A segurança é garantida por idempotência via request_id (ver abaixo).
+    if not _verify_debitopay_signature(request):
+        logger.warning('WEBHOOK assinatura inválida — pedido rejeitado')
+        return HttpResponse('Assinatura inválida.', status=401)
 
     try:
-        event = json.loads(payload)
+        event = json.loads(request.body)
         event_type = event.get('event')
-        request_id = event.get('request_id', '')
         data = event.get('data', {})
-        reference = data.get('reference')  # == order.ref  ex: JNA4F2BC
+        payment_id = data.get('payment_id')
 
-        order = Order.objects.get(ref=reference)
+        # Correspondência feita pelo payment_id devolvido na criação do
+        # pagamento (guardado em order.paysuite_id) — o campo "reference"
+        # do webhook é a referência do provedor, não o order.ref.
+        order = Order.objects.get(paysuite_id=payment_id)
 
         # Idempotência — ignorar se o order já foi pago
         if order.status == 'paid':
-            logger.warning(f"WEBHOOK order já processado, ignorado: {reference}")
+            logger.warning(f"WEBHOOK order já processado, ignorado: {payment_id}")
             return HttpResponse('OK', status=200)
 
-        if event_type == 'payment.success':
-            transaction = data.get('transaction', {})
-
+        if event_type == 'payment.completed':
             # Marca como pago PRIMEIRO — bloqueia chamadas duplicadas
             updated = Order.objects.filter(
-                ref=reference,
+                paysuite_id=payment_id,
                 status='pending',  # só actualiza se ainda estiver pendente
             ).update(
                 status='paid',
-                paysuite_transaction_id=request_id or transaction.get('id', ''),
+                paysuite_transaction_id=data.get('reference', ''),
             )
 
             if not updated:
                 # Outra chamada paralela já processou — ignorar
-                logger.warning(f"WEBHOOK race condition ignorada: {reference}")
+                logger.warning(f"WEBHOOK race condition ignorada: {payment_id}")
                 return HttpResponse('OK', status=200)
 
             # Recarrega o order actualizado
@@ -227,11 +326,17 @@ def paysuite_webhook(request):
             activate_client_package(order)
 
         elif event_type == 'payment.failed':
-            # Ignorar — a PaySuite envia 'failed' enquanto o cliente
-            # ainda não confirmou o PIN. O 'success' chega depois.
-            pass
+            Order.objects.filter(paysuite_id=payment_id, status='pending').update(
+                status='failed',
+            )
 
-        # PaySuite exige resposta em menos de 5 segundos
+        elif event_type in ('payment.refunded', 'payment.chargeback'):
+            Order.objects.filter(paysuite_id=payment_id).update(
+                status='refunded' if event_type == 'payment.refunded' else 'chargeback',
+            )
+            logger.warning(f"WEBHOOK {event_type} recebido para order {order.ref}")
+
+        # A Debito Pay exige resposta em menos de 5 segundos
         return HttpResponse('OK', status=200)
 
     except Order.DoesNotExist:

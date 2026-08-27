@@ -166,7 +166,7 @@ LOGOUT_REDIRECT_URL = "accounts:login"
 
 
 UNFOLD = {
-    "SITE_TITLE": "Talk Coaching",
+    "SITE_TITLE": "Can't Stop",
 
     "SITE_URL": "/",
 
@@ -329,10 +329,13 @@ UNFOLD = {
     },
 }
 
-PAYSUITE_API_KEY = os.environ.get('PAYSUITE_API_KEY', '')
-PAYSUITE_WEBHOOK_SECRET = os.environ.get('PAYSUITE_WEBHOOK_SECRET', '')
-PAYSUITE_RETURN_URL = os.environ.get('PAYSUITE_RETURN_URL', 'https://jonia.up.railway.app/checkout/obrigado/')
-PAYSUITE_WEBHOOK_URL = os.environ.get('PAYSUITE_WEBHOOK_URL', 'https://jonia.up.railway.app/checkout/webhook/')
+
+DEBITOPAY_API_KEY = "sk_live_EWpLPCRce2AgBOlukP6Jhj3qXno3NdMR"
+DEBITOPAY_MERCHANT_ID = "e5d6a8d9-e5f6-476e-b2b8-13cc3ef19788"
+DEBITOPAY_WALLET_CODE = ""
+DEBITOPAY_WEBHOOK_SECRET = "Z6x@N8nxzSpS2UU"
+DEBITOPAY_RETURN_URL = "https://csws.up.railway.app/checkout/obrigado/"
+DEBITOPAY_CURRENCY = "MZN"
 
 
 # Email - Gmail SMTP

@@ -8,5 +8,5 @@ urlpatterns = [
     path('checkout/', views.checkout_view, name='checkout'),
     path('checkout/order/', views.create_order, name='create_order'),
     path('checkout/obrigado/', views.checkout_return, name='checkout_return'),
-    path('checkout/webhook/', views.paysuite_webhook, name='paysuite_webhook'),
+    path('checkout/webhook/', views.debitopay_webhook, name='debitopay_webhook'),
 ]
