@@ -43,6 +43,14 @@ DEBITOPAY_MOBILE_MONEY_METHODS = {'mpesa', 'emola', 'mkesh'}
 DEBITOPAY_HOSTED_CHECKOUT_METHODS = {'visa_mastercard', 'payfast'}
 DEBITOPAY_SUPPORTED_METHODS = DEBITOPAY_MOBILE_MONEY_METHODS | DEBITOPAY_HOSTED_CHECKOUT_METHODS
 
+DEBITOPAY_TIMEOUTS = {
+    'mpesa': 90,          # síncrono, espera confirmação do PIN no telemóvel
+    'emola': 60,
+    'mkesh': 60,
+    'visa_mastercard': 30,
+    'payfast': 30,
+}
+
 
 def _debitopay_create_payment(order, payment_method, phone=None):
     """
@@ -72,11 +80,15 @@ def _debitopay_create_payment(order, payment_method, phone=None):
     else:
         raise ValueError(f'Método de pagamento não suportado: {payment_method}')
 
+    # X-Idempotency-Key evita que um retry (ex.: depois de um timeout) crie
+    # um segundo pagamento na Debito Pay para o mesmo order.
+    request_headers = {**DEBITOPAY_HEADERS, 'X-Idempotency-Key': order.ref}
+
     response = http_requests.post(
         f'{DEBITOPAY_BASE}/payment-orchestrator',
-        headers=DEBITOPAY_HEADERS,
+        headers=request_headers,
         json=payload,
-        timeout=10,
+        timeout=DEBITOPAY_TIMEOUTS.get(payment_method, 30),
     )
     response.raise_for_status()
     data = response.json()
@@ -247,6 +259,21 @@ def create_order(request):
 
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    except http_requests.exceptions.Timeout:
+        # A nossa ligação caiu, mas isso NÃO significa que a Debito Pay não
+        # processou o pagamento (sobretudo no mpesa, que espera o cliente
+        # confirmar no telemóvel). Não marcamos o order como 'failed' aqui —
+        # fica 'pending' e deve ser reconciliado via webhook ou por uma
+        # chamada posterior a action=check-status usando order.paysuite_id.
+        logger.warning(f"GATEWAY timeout ao criar pagamento para order {order.ref}")
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'A confirmar o pagamento, isto pode demorar um pouco. Verifique o estado antes de tentar novamente.',
+                'status': 'pending',
+            },
+            status=202,
+        )
     except http_requests.RequestException as e:
         return JsonResponse(
             {'success': False, 'error': f'Erro ao contactar gateway de pagamento: {e}'},
