@@ -4,24 +4,40 @@ Management command: seed_cant_stop_wont_stop
 Popula a base de dados com o plano "CAN'T STOP WON'T STOP" (alimentação +
 bodyweight) usando os modelos existentes:
 
-    - nutrition:  FoodItem, NutritionPlan, Meal, MealItem
-    - workouts:   MuscleGroup, Exercise, WorkoutPlan, WorkoutDay, WorkoutExercise
+    - apps.nutrition: FoodItem, NutritionPlan, Meal, MealItem
+    - apps.workouts:  MuscleGroup, Exercise, WorkoutPlan, WorkoutDay, WorkoutExercise
+    - apps.coaching:  CoachingPackage (agrega WorkoutPlan + NutritionPlan),
+                       ClientPackage (atribuição opcional a um cliente)
+
+Cria DOIS WorkoutPlan / CoachingPackage, ambos para subscrição de 1 mês
+(duration_weeks=4, duration_days=30), com o mesmo NutritionPlan associado:
+
+    - "3x/semana (Seg/Qua/Sex)" — Treino A na Segunda, Treino B na Quarta,
+      Treino A na Sexta; Terça/Quinta de descanso, Sábado caminhada
+      opcional, Domingo descanso.
+    - "5x/semana (Seg a Sex)"   — Treino A/B alternados de Segunda a
+      Sexta; Sábado caminhada opcional, Domingo descanso.
 
 COMO USAR
 ---------
 1. Copiar este ficheiro para:
-       <app_nutricao>/management/commands/seed_cant_stop_wont_stop.py
+       apps/coaching/management/commands/seed_cant_stop_wont_stop.py
        (criar as pastas management/ e management/commands/ com __init__.py
        vazios, se ainda não existirem)
 
-2. Ajustar os dois imports abaixo ("workouts.models" e "nutrition.models")
-   para os nomes reais das tuas apps Django.
-
-3. Correr:
+2. Correr:
        python manage.py seed_cant_stop_wont_stop --coach <username_do_coach>
 
    O utilizador indicado em --coach tem de ter role="coach" (é FK
-   obrigatória em Exercise, WorkoutPlan e NutritionPlan).
+   obrigatória em Exercise, WorkoutPlan, NutritionPlan e CoachingPackage).
+
+   Opcionalmente, para já atribuir um dos dois pacotes a um cliente (cria
+   um ClientPackage), passar também:
+       --client <username_do_cliente> --plan 3x --start-date 2026-09-08
+
+   (--plan aceita "3x" ou "5x", por omissão "3x". --start-date é opcional;
+   por omissão usa a data de hoje. end_date é calculada automaticamente a
+   partir de duration_days=30 do pacote.)
 
 O comando é idempotente: pode ser corrido várias vezes sem duplicar dados
 (usa get_or_create em tudo).
@@ -45,24 +61,28 @@ representar o menu semanal (secção 12 do plano), cada refeição de cada dia
 (dia * 10 + posição da refeição no dia).
 """
 
+import datetime
+
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 
-# --- AJUSTA ESTES IMPORTS PARA OS NOMES REAIS DAS TUAS APPS -------------
-from workouts.models import (
+from apps.workouts.models import (
     MuscleGroup,
     Exercise,
     WorkoutPlan,
     WorkoutDay,
     WorkoutExercise,
 )
-from nutrition.models import (
+from apps.nutrition.models import (
     FoodItem,
     NutritionPlan,
     Meal,
     MealItem,
 )
-# --------------------------------------------------------------------------
+from apps.packages.models import (
+    CoachingPackage,
+    ClientPackage,
+)
 
 User = get_user_model()
 
@@ -239,14 +259,27 @@ TREINO_B = [
     ("Prancha", 3, "30-45s", 30, "3-4 voltas (circuito)"),
 ]
 
-# Semana sugerida: dia_da_semana -> (nome_do_dia, treino_ou_None, notas)
-WEEK_SCHEDULE = [
+# Duas variantes de plano, ambas para uma subscrição de 1 mês (4 semanas):
+#   - 3x/semana: Segunda / Quarta / Sexta
+#   - 5x/semana: Segunda a Sexta
+# dia_da_semana -> (nome_do_dia, treino_ou_None, notas)
+WEEK_SCHEDULE_3X = [
+    (1, "Treino A", TREINO_A, ""),
+    (2, "Descanso", None, "Descanso — sem treino entre os dias de Treino A e B"),
+    (3, "Treino B", TREINO_B, ""),
+    (4, "Descanso", None, "Descanso — sem treino entre os dias de Treino A e B"),
+    (5, "Treino A", TREINO_A, ""),
+    (6, "Caminhada / Corrida leve", None, "Opcional — ritmo leve, recuperação ativa"),
+    (7, "Descanso", None, "Descanso completo — recuperação"),
+]
+
+WEEK_SCHEDULE_5X = [
     (1, "Treino A", TREINO_A, ""),
     (2, "Treino B", TREINO_B, ""),
-    (3, "Recuperação / Caminhada", None, "Caminhada leve ou descanso ativo"),
-    (4, "Treino A", TREINO_A, ""),
-    (5, "Treino B", TREINO_B, ""),
-    (6, "Caminhada / Corrida leve", None, "Ritmo leve, foco em consistência"),
+    (3, "Treino A", TREINO_A, ""),
+    (4, "Treino B", TREINO_B, ""),
+    (5, "Treino A", TREINO_A, ""),
+    (6, "Caminhada / Corrida leve", None, "Opcional — ritmo leve, recuperação ativa"),
     (7, "Descanso", None, "Descanso completo — recuperação"),
 ]
 
@@ -260,6 +293,25 @@ class Command(BaseCommand):
             required=True,
             help="Username do utilizador coach (role='coach') dono dos planos.",
         )
+        parser.add_argument(
+            "--client",
+            default=None,
+            help="Username do cliente (role='client') a quem atribuir o "
+                 "pacote via ClientPackage. Opcional.",
+        )
+        parser.add_argument(
+            "--start-date",
+            default=None,
+            help="Data de início (YYYY-MM-DD) do ClientPackage, se --client "
+                 "for indicado. Por omissão, hoje.",
+        )
+        parser.add_argument(
+            "--plan",
+            choices=["3x", "5x"],
+            default="3x",
+            help="Qual dos dois pacotes (3x ou 5x/semana) atribuir ao "
+                 "--client, se indicado. Por omissão, '3x'.",
+        )
 
     def handle(self, *args, **options):
         try:
@@ -267,18 +319,69 @@ class Command(BaseCommand):
         except User.DoesNotExist:
             raise CommandError(f"Utilizador '{options['coach']}' não encontrado.")
 
+        client = None
+        if options["client"]:
+            try:
+                client = User.objects.get(username=options["client"])
+            except User.DoesNotExist:
+                raise CommandError(f"Cliente '{options['client']}' não encontrado.")
+
         self.stdout.write("A criar alimentos (FoodItem)...")
         foods = self._seed_food_items()
 
         self.stdout.write("A criar plano alimentar (NutritionPlan)...")
-        self._seed_nutrition_plan(coach, foods)
+        nutrition_plan = self._seed_nutrition_plan(coach, foods)
 
         self.stdout.write("A criar grupos musculares e exercícios...")
         muscle_groups = self._seed_muscle_groups()
         exercises = self._seed_exercises(coach, muscle_groups)
 
-        self.stdout.write("A criar plano de treino bodyweight (WorkoutPlan)...")
-        self._seed_workout_plan(coach, exercises)
+        self.stdout.write("A criar planos de treino bodyweight (WorkoutPlan)...")
+        workout_plan_3x = self._seed_workout_plan(
+            coach, exercises,
+            name="Cant Stop Wont Stop — Bodyweight 3x/semana (Seg/Qua/Sex)",
+            description=(
+                "Programa bodyweight 3x/semana (Segunda, Quarta, Sexta), "
+                "sem necessidade de ginásio. Ideal para quem tem menos "
+                "disponibilidade de tempo."
+            ),
+            schedule=WEEK_SCHEDULE_3X,
+        )
+        workout_plan_5x = self._seed_workout_plan(
+            coach, exercises,
+            name="Cant Stop Wont Stop — Bodyweight 5x/semana (Seg a Sex)",
+            description=(
+                "Programa bodyweight 5x/semana (Segunda a Sexta, "
+                "alternando Treino A/B), sem necessidade de ginásio. "
+                "Ideal para quem quer ritmo mais intenso."
+            ),
+            schedule=WEEK_SCHEDULE_5X,
+        )
+
+        self.stdout.write("A criar pacotes de coaching (CoachingPackage, 1 mês)...")
+        package_3x = self._seed_coaching_package(
+            coach, workout_plan_3x, nutrition_plan,
+            name="Cant Stop Wont Stop — 3x/semana (1 mês)",
+            description=(
+                "Subscrição mensal: plano alimentar (menu semanal) + "
+                "treino bodyweight 3x/semana (Seg/Qua/Sex)."
+            ),
+        )
+        package_5x = self._seed_coaching_package(
+            coach, workout_plan_5x, nutrition_plan,
+            name="Cant Stop Wont Stop — 5x/semana (1 mês)",
+            description=(
+                "Subscrição mensal: plano alimentar (menu semanal) + "
+                "treino bodyweight 5x/semana (Segunda a Sexta)."
+            ),
+        )
+
+        if client:
+            package = package_3x if options["plan"] == "3x" else package_5x
+            self.stdout.write(
+                f"A atribuir o pacote '{package.name}' ao cliente '{client}'..."
+            )
+            self._seed_client_package(coach, client, package, options["start_date"])
 
         self.stdout.write(self.style.SUCCESS(
             "Plano 'Cant Stop Wont Stop' semeado com sucesso."
@@ -365,22 +468,18 @@ class Command(BaseCommand):
             exercises[name] = obj
         return exercises
 
-    def _seed_workout_plan(self, coach, exercises):
+    def _seed_workout_plan(self, coach, exercises, name, description, schedule):
         plan, _ = WorkoutPlan.objects.get_or_create(
-            name="Cant Stop Wont Stop — Bodyweight (4-5x/semana)",
+            name=name,
             coach=coach,
             defaults=dict(
-                description=(
-                    "Programa bodyweight sem necessidade de ginásio: "
-                    "Treino A, Treino B, caminhada e um dia de descanso "
-                    "completo por semana."
-                ),
-                duration_weeks=8,
+                description=description,
+                duration_weeks=4,  # subscrição de 1 mês
                 is_active=True,
             ),
         )
 
-        for day_of_week, day_name, treino, notes in WEEK_SCHEDULE:
+        for day_of_week, day_name, treino, notes in schedule:
             workout_day, _ = WorkoutDay.objects.get_or_create(
                 plan=plan,
                 day_of_week=day_of_week,
@@ -413,3 +512,41 @@ class Command(BaseCommand):
                     ),
                 )
         return plan
+
+    # ------------------------------------------------------------------
+    def _seed_coaching_package(self, coach, workout_plan, nutrition_plan, name, description):
+        """
+        Agrega o WorkoutPlan + NutritionPlan num CoachingPackage.
+        `price` fica em branco (None) — o guia não define preço; ajusta
+        depois via admin/painel conforme a tua tabela de preços.
+        """
+        package, _ = CoachingPackage.objects.get_or_create(
+            name=name,
+            coach=coach,
+            defaults=dict(
+                description=description,
+                workout_plan=workout_plan,
+                nutrition_plan=nutrition_plan,
+                duration_days=30,  # subscrição de 1 mês
+                is_active=True,
+            ),
+        )
+        return package
+
+    def _seed_client_package(self, coach, client, package, start_date_str):
+        if start_date_str:
+            start_date = datetime.date.fromisoformat(start_date_str)
+        else:
+            start_date = datetime.date.today()
+        end_date = start_date + datetime.timedelta(days=package.duration_days)
+
+        ClientPackage.objects.get_or_create(
+            client=client,
+            package=package,
+            defaults=dict(
+                status=ClientPackage.Status.ACTIVE,
+                start_date=start_date,
+                end_date=end_date,
+                assigned_by=coach,
+            ),
+        )
