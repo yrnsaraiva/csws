@@ -120,20 +120,53 @@
                                 • {{ meal.items.count }} itens</p>
                         </div>
                     </div>
-                    {% if meal.pk in completed_meals %}
-                        <span class="w-8 h-8 rounded-full bg-brand-600/20 flex items-center justify-center">
-                    <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
-                            stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                </span>
-                    {% else %}
-                        <span class="w-8 h-8 rounded-full bg-dark-surface flex items-center justify-center">
-                    <div class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
-                </span>
-                    {% endif %}
+                    <button type="button"
+                            class="meal-toggle w-8 h-8 rounded-full flex items-center justify-center transition-colors {% if meal.pk in completed_meals %}bg-brand-600/20{% else %}bg-dark-surface{% endif %}"
+                            data-meal-id="{{ meal.pk }}"
+                            data-toggle-url="{% url 'nutrition:toggle_meal' meal.pk %}"
+                            aria-label="Marcar refeição como concluída">
+                        {% if meal.pk in completed_meals %}
+                            <svg class="w-4 h-4 text-brand-400 meal-toggle-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
+                                    stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        {% else %}
+                            <div class="w-3 h-3 rounded-full border-2 border-gray-600 meal-toggle-icon"></div>
+                        {% endif %}
+                    </button>
                 </div>
             {% endfor %}
         </div>
     </div>
+
+    <script>
+        // Marca/desmarca refeição como concluída sem recarregar a página.
+        document.querySelectorAll(".meal-toggle").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                fetch(btn.dataset.toggleUrl, {
+                    method: "POST",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "X-CSRFToken": "{{ csrf_token }}",
+                    },
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        const icon = btn.querySelector(".meal-toggle-icon");
+                        if (data.completed) {
+                            btn.classList.remove("bg-dark-surface");
+                            btn.classList.add("bg-brand-600/20");
+                            icon.outerHTML =
+                                '<svg class="w-4 h-4 text-brand-400 meal-toggle-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
+                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+                        } else {
+                            btn.classList.remove("bg-brand-600/20");
+                            btn.classList.add("bg-dark-surface");
+                            icon.outerHTML = '<div class="w-3 h-3 rounded-full border-2 border-gray-600 meal-toggle-icon"></div>';
+                        }
+                    })
+                    .catch(function (err) { console.error("Erro ao registar refeição:", err); });
+            });
+        });
+    </script>
 
     <!-- Recent Activity -->
     <div>

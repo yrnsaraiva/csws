@@ -191,10 +191,20 @@ WEEKLY_MENU = [
      [("Ovo cozido", 100), ("Banana", 100)], ""),
     ("Domingo", 2, "lunch", "Almoço em família (porção controlada)",
      [("Peixe (tilápia grelhada)", 150), ("Arroz branco cozido", 130),
-      ("Salada mista (folhas/tomate/pepino)", 100)], "Refeição livre 20% cabe aqui - regra 80/20"),
+      ("Salada mista (folhas/tomate/pepino)", 100)], "Refeição livre 20% cabe aqui — regra 80/20"),
     ("Domingo", 3, "dinner", "Jantar leve",
      [("Peixe (tilápia grelhada)", 130), ("Salada mista (folhas/tomate/pepino)", 150)], ""),
 ]
+
+DAY_NAME_TO_INT = {
+    "Segunda-feira": 1,
+    "Terça-feira": 2,
+    "Quarta-feira": 3,
+    "Quinta-feira": 4,
+    "Sexta-feira": 5,
+    "Sábado": 6,
+    "Domingo": 7,
+}
 
 SNACK_OPTIONS_NOTE = (
     "Lanche opcional - só se houver fome real ou intervalo longo entre "
@@ -270,7 +280,7 @@ WEEK_SCHEDULE_3X = [
     (4, "Descanso", None, "Descanso - sem treino entre os dias de Treino A e B"),
     (5, "Treino A", TREINO_A, ""),
     (6, "Caminhada / Corrida leve", None, "Opcional - ritmo leve, recuperação ativa"),
-    (7, "Descanso", None, "Descanso completo - recuperação"),
+    (7, "Descanso", None, "Descanso completo — recuperação"),
 ]
 
 WEEK_SCHEDULE_5X = [
@@ -280,7 +290,7 @@ WEEK_SCHEDULE_5X = [
     (4, "Treino B", TREINO_B, ""),
     (5, "Treino A", TREINO_A, ""),
     (6, "Caminhada / Corrida leve", None, "Opcional - ritmo leve, recuperação ativa"),
-    (7, "Descanso", None, "Descanso completo - recuperação"),
+    (7, "Descanso", None, "Descanso completo — recuperação"),
 ]
 
 
@@ -361,7 +371,7 @@ class Command(BaseCommand):
         self.stdout.write("A criar pacotes de coaching (CoachingPackage, 1 mês)...")
         package_3x = self._seed_coaching_package(
             coach, workout_plan_3x, nutrition_plan,
-            name="3x/semana (1 mês)",
+            name="Cant Stop Wont Stop - 3x/semana (1 mês)",
             description=(
                 "Subscrição mensal: plano alimentar (menu semanal) + "
                 "treino bodyweight 3x/semana (Seg/Qua/Sex)."
@@ -369,7 +379,7 @@ class Command(BaseCommand):
         )
         package_5x = self._seed_coaching_package(
             coach, workout_plan_5x, nutrition_plan,
-            name="5x/semana (1 mês)",
+            name="Cant Stop Wont Stop - 5x/semana (1 mês)",
             description=(
                 "Subscrição mensal: plano alimentar (menu semanal) + "
                 "treino bodyweight 5x/semana (Segunda a Sexta)."
@@ -407,14 +417,14 @@ class Command(BaseCommand):
 
     def _seed_nutrition_plan(self, coach, foods):
         plan, _ = NutritionPlan.objects.get_or_create(
-            name="Cant Stop Wont Stop - Emagrecimento (Menu Semanal)",
+            name="Emagrecimento, condicionamento",
             coach=coach,
             defaults=dict(
                 description=(
                     "Plano alimentar geral com alimentos acessíveis em "
                     "Moçambique, baseado na regra do prato (½ vegetais, "
                     "¼ proteína, ¼ carboidrato) e na regra 80/20. Guia "
-                    "educativo, não substitui avaliação nutricional "
+                    "educativo — não substitui avaliação nutricional "
                     "individual."
                 ),
                 is_active=True,
@@ -424,9 +434,10 @@ class Command(BaseCommand):
         for day, day_order, meal_type, meal_name, items, notes in WEEKLY_MENU:
             meal, _ = Meal.objects.get_or_create(
                 plan=plan,
-                name=f"{day} - {meal_name}",
+                day_of_week=DAY_NAME_TO_INT[day],
                 meal_type=meal_type,
                 defaults=dict(
+                    name=f"{day} — {meal_name}",
                     order=day_order + (["breakfast", "lunch", "dinner"].index(meal_type) * 10),
                     notes=notes,
                 ),
