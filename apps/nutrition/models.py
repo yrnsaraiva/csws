@@ -59,7 +59,21 @@ class Meal(models.Model):
         PRE_WORKOUT = "pre_workout", "Pré-Treino"
         POST_WORKOUT = "post_workout", "Pós-Treino"
 
+    class DayOfWeek(models.IntegerChoices):
+        MONDAY = 1, "Segunda"
+        TUESDAY = 2, "Terça"
+        WEDNESDAY = 3, "Quarta"
+        THURSDAY = 4, "Quinta"
+        FRIDAY = 5, "Sexta"
+        SATURDAY = 6, "Sábado"
+        SUNDAY = 7, "Domingo"
+
     plan = models.ForeignKey(NutritionPlan, on_delete=models.CASCADE, related_name="meals")
+    day_of_week = models.IntegerField(
+        choices=DayOfWeek.choices, null=True, blank=True,
+        verbose_name="Dia da Semana",
+        help_text="Deixa em branco para refeições disponíveis em qualquer dia (ex: lanche livre).",
+    )
     meal_type = models.CharField(max_length=20, choices=MealType.choices, verbose_name="Tipo de Refeição")
     name = models.CharField(max_length=200, blank=True, verbose_name="Nome personalizado")
     time = models.TimeField(null=True, blank=True, verbose_name="Horário sugerido")
@@ -69,7 +83,7 @@ class Meal(models.Model):
     class Meta:
         verbose_name = "Refeição"
         verbose_name_plural = "Refeições"
-        ordering = ["order"]
+        ordering = ["day_of_week", "order"]
 
     def __str__(self):
         return f"{self.get_meal_type_display()} - {self.plan.name}"
