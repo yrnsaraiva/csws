@@ -143,7 +143,9 @@ class DashboardView(LoginRequiredMixin, ClientRequiredMixin, TemplateView):
         # --- Alimentação hoje ---
         if active_package and active_package.package.nutrition_plan:
             nutrition_plan = active_package.package.nutrition_plan
-            ctx["today_meals"] = nutrition_plan.meals.prefetch_related("items__food").all()
+            ctx["today_meals"] = nutrition_plan.meals.filter(
+                Q(day_of_week=today_weekday) | Q(day_of_week__isnull=True)
+            ).prefetch_related("items__food")
             ctx["today_calories"] = nutrition_plan.target_calories or 0
 
             # Refeições completadas hoje
