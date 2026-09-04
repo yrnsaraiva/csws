@@ -3,6 +3,7 @@ from django.templatetags.static import static
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-tzj(-_+clh3=hw$_oh5dn!57&j9dqh7!fo!!t4e8w_v4od9q(6')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -105,6 +106,12 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+POSTGRES_LOCALLY = True
+if not DEBUG or POSTGRES_LOCALLY:
+    DATABASES['default'] = dj_database_url.parse(
+        os.environ.get('DATABASE_URL')
+    )
 
 
 # Password validation
