@@ -1,4 +1,5 @@
-from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth import login, authenticate, logout, update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView, UpdateView, CreateView
 from django.views import View
@@ -214,3 +215,21 @@ class ProfileUpdateView(LoginRequiredMixin, View):
             "user_form": user_form,
             "profile_form": profile_form,
         })
+
+
+class ChangePasswordView(LoginRequiredMixin, View):
+    """Alterar a palavra-passe do utilizador autenticado."""
+    template_name = "accounts/change_password.html"
+
+    def get(self, request):
+        form = PasswordChangeForm(user=request.user)
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Mantém a sessão ativa depois de alterar a hash da password
+            update_session_auth_hash(request, user)
+            return redirect("accounts:profile")
+        return render(request, self.template_name, {"form": form})
