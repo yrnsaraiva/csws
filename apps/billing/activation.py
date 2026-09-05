@@ -131,7 +131,7 @@ Recomendamos que altere a password após o primeiro login.
 
 O coach entrará em contacto em breve para dar início ao seu plano.
 
-Equipa Jonia
+Equipa can\'t stop
 """
     else:
         subject = f'Renovação confirmada, {user.first_name}!'

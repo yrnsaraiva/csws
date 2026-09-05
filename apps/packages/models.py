@@ -30,6 +30,7 @@ class CoachingPackage(models.Model):
     class Meta:
         verbose_name = "Pacote de Coaching"
         verbose_name_plural = "Pacotes de Coaching"
+        ordering = ['-created_at']
 
     def __str__(self):
         return self.name
