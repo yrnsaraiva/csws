@@ -183,12 +183,9 @@ class FinishWorkoutView(LoginRequiredMixin, ClientRequiredMixin, View):
     def post(self, request, pk):
         log = get_object_or_404(WorkoutLog, pk=pk, client=request.user)
 
-        # Calcular duração
-        if log.date:
-            duration = (timezone.now() - timezone.datetime.combine(
-                log.date, timezone.datetime.min.time(),
-                tzinfo=timezone.get_current_timezone()
-            )).seconds // 60
+        if log.started_at:
+            delta = timezone.now() - log.started_at
+            duration = int(delta.total_seconds() // 60)
             log.duration_minutes = min(duration, 300)  # cap 5h
 
         log.completed = True

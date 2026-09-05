@@ -123,6 +123,7 @@ class WorkoutLog(models.Model):
     client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="workout_logs")
     workout_day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
+    started_at = models.DateTimeField(auto_now_add=True)
     completed = models.BooleanField(default=False)
     duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
