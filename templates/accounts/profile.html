@@ -6,25 +6,25 @@
 
     <!-- Identity card -->
     <div class="bg-dark-card rounded-2xl border border-dark-border p-6">
-        <div class="flex items-start justify-between gap-4">
-            <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div class="flex items-center gap-4 min-w-0">
                 {% if user.photo %}
-                    <img src="{{ user.photo.url }}" class="w-16 h-16 rounded-full object-cover">
+                    <img src="{{ user.photo.url }}" class="w-16 h-16 rounded-full object-cover flex-shrink-0">
                 {% else %}
-                    <div class="w-16 h-16 rounded-full bg-brand-600 flex items-center justify-center text-lg font-bold text-white">
+                    <div class="w-16 h-16 rounded-full bg-brand-600 flex items-center justify-center text-lg font-bold text-white flex-shrink-0">
                         {{ user.first_name.0 }}{{ user.last_name.0 }}
                     </div>
                 {% endif %}
-                <div>
-                    <h1 class="text-lg font-bold text-white">{{ user.get_full_name }}</h1>
-                    <p class="text-sm text-gray-500">{{ user.email }}{% if user.phone %} · {{ user.phone }}{% endif %}</p>
+                <div class="min-w-0">
+                    <h1 class="text-lg font-bold text-white truncate">{{ user.get_full_name }}</h1>
+                    <p class="text-sm text-gray-500 truncate">{{ user.email }}{% if user.phone %} · {{ user.phone }}{% endif %}</p>
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-                <a href="{% url 'accounts:change_password' %}" class="px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm font-medium text-gray-300 hover:text-white hover:border-brand-500 transition-all">
+                <a href="{% url 'accounts:change_password' %}" class="flex-1 sm:flex-none text-center px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm font-medium text-gray-300 hover:text-white hover:border-brand-500 transition-all">
                     Palavra-passe
                 </a>
-                <a href="{% url 'accounts:profile_edit' %}" class="px-3.5 py-2 rounded-xl bg-brand-600 text-sm font-medium text-white hover:bg-brand-500 transition-colors">
+                <a href="{% url 'accounts:profile_edit' %}" class="flex-1 sm:flex-none text-center px-3.5 py-2 rounded-xl bg-brand-600 text-sm font-medium text-white hover:bg-brand-500 transition-colors">
                     Editar
                 </a>
             </div>
@@ -36,12 +36,12 @@
 
     <!-- Stats card -->
     <div class="bg-dark-card rounded-2xl border border-dark-border p-6">
-        <div class="flex items-center gap-6">
-            <div>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <div class="flex-shrink-0">
                 <p class="text-4xl font-bold text-white leading-none">{{ total_workouts }}</p>
                 <p class="text-sm text-gray-500 mt-2">treino{{ total_workouts|pluralize }} concluído{{ total_workouts|pluralize }}</p>
             </div>
-            <div class="w-px self-stretch bg-dark-border"></div>
+            <div class="h-px w-full sm:h-auto sm:w-px sm:self-stretch bg-dark-border"></div>
             <div class="space-y-2">
                 <p class="text-sm text-gray-400">{{ total_minutes }} minutos de treino ao todo</p>
                 <p class="text-sm text-gray-500">Membro desde {{ member_since|date:"M Y" }}</p>
@@ -62,14 +62,14 @@
                 <span class="text-sm text-gray-500">Peso</span>
                 <span class="text-sm font-medium text-white">{{ profile.weight_kg|default:"—" }} kg</span>
             </div>
-            <div class="flex items-start justify-between py-3 gap-6 first:pt-0 last:pb-0">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between py-3 gap-1 sm:gap-6 first:pt-0 last:pb-0">
                 <span class="text-sm text-gray-500 flex-shrink-0">Objetivo</span>
-                <span class="text-sm font-medium text-white text-right">{{ profile.goal|default:"Não definido" }}</span>
+                <span class="text-sm font-medium text-white sm:text-right">{{ profile.goal|default:"Não definido" }}</span>
             </div>
             {% if profile.notes %}
-            <div class="flex items-start justify-between py-3 gap-6 first:pt-0 last:pb-0">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between py-3 gap-1 sm:gap-6 first:pt-0 last:pb-0">
                 <span class="text-sm text-gray-500 flex-shrink-0">Observações</span>
-                <span class="text-sm text-gray-400 text-right">{{ profile.notes }}</span>
+                <span class="text-sm text-gray-400 sm:text-right">{{ profile.notes }}</span>
             </div>
             {% endif %}
         </div>
