@@ -357,9 +357,14 @@ DEBITOPAY_CURRENCY = "MZN"
 
 # Email - Gmail SMTP
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
+EMAIL_HOST = 'smtp.hostinger.com'
+EMAIL_PORT = 465
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'yrnsaraiva.office@gmail.com'
+EMAIL_HOST_USER = 'geral@cantstopwontstop.lt'
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')   # App Password, não a password normal
-DEFAULT_FROM_EMAIL = 'yrnsaraiva.office@gmail.com'
+DEFAULT_FROM_EMAIL = 'geral@cantstopwontstop.lt'
+
+
+SESSION_COOKIE_AGE = 3600  # 60 minutos
+
+SESSION_SAVE_EVERY_REQUEST = True
