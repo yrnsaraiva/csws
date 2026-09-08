@@ -24,6 +24,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'http://localhost',
     'http://127.0.0.1',
+    'https://cantstopwontstop.lt',
 ]
 
 
