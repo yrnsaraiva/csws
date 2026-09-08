@@ -25,6 +25,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
     'http://127.0.0.1',
     'https://cantstopwontstop.lt',
+    'https://www.cantstopwontstop.lt',
 ]
 
 
