@@ -35,16 +35,12 @@ DEBITOPAY_HEADERS = {
     'Accept': 'application/json',
 }
 
-# Métodos suportados no checkout. mpesa/emola/mkesh exigem "phone" e são
-# mobile money (mpesa confirma sync, emola/mkesh confirmam via webhook).
-# visa_mastercard/payfast devolvem um checkout_url (Hosted Checkout) e
-# exigem "return_url".
 DEBITOPAY_MOBILE_MONEY_METHODS = {'mpesa', 'emola', 'mkesh'}
 DEBITOPAY_HOSTED_CHECKOUT_METHODS = {'visa_mastercard', 'payfast'}
 DEBITOPAY_SUPPORTED_METHODS = DEBITOPAY_MOBILE_MONEY_METHODS | DEBITOPAY_HOSTED_CHECKOUT_METHODS
 
 DEBITOPAY_TIMEOUTS = {
-    'mpesa': 90,          # síncrono, espera confirmação do PIN no telemóvel
+    'mpesa': 90,
     'emola': 60,
     'mkesh': 60,
     'visa_mastercard': 30,
@@ -53,10 +49,6 @@ DEBITOPAY_TIMEOUTS = {
 
 
 def _debitopay_create_payment(order, payment_method, phone=None):
-    """
-    Cria um payment na Debito Pay via /payment-orchestrator e devolve o
-    JSON de resposta completo (o formato varia consoante payment_method).
-    """
     payload = {
         'action': 'process',
         'payment_method': payment_method,
@@ -80,8 +72,6 @@ def _debitopay_create_payment(order, payment_method, phone=None):
     else:
         raise ValueError(f'Método de pagamento não suportado: {payment_method}')
 
-    # X-Idempotency-Key evita que um retry (ex.: depois de um timeout) crie
-    # um segundo pagamento na Debito Pay para o mesmo order.
     request_headers = {**DEBITOPAY_HEADERS, 'X-Idempotency-Key': order.ref}
 
     response = http_requests.post(
@@ -100,7 +90,6 @@ def _debitopay_create_payment(order, payment_method, phone=None):
 
 
 def _verify_debitopay_signature(request):
-    """Valida a assinatura HMAC-SHA256 do webhook (header X-Webhook-Signature)."""
     signature = request.headers.get('X-Webhook-Signature', '')
     if not signature:
         return False
@@ -112,21 +101,36 @@ def _verify_debitopay_signature(request):
     return hmac.compare_digest(expected, signature)
 
 
+def _activate_client_package_safe(order, context=''):
+    """
+    Corre activate_client_package isolando qualquer falha não-crítica
+    (ex.: envio de email de boas-vindas) para que nunca impeça o caller
+    de devolver sucesso quando o pagamento já está confirmado e o
+    order.status já foi actualizado para 'paid'.
+
+    Devolve True se activate_client_package correu sem excepções,
+    False se falhou (mas já foi registado em log — o caller decide
+    se isso deve afectar a resposta).
+    """
+    try:
+        activate_client_package(order)
+        return True
+    except Exception:
+        logger.exception(
+            f"ACTIVATION falhou depois do pagamento confirmado para order "
+            f"{order.ref} ({context}) — verificar manualmente se o "
+            f"email de boas-vindas / passos pós-activação ficaram por fazer."
+        )
+        return False
+
+
 # ---------------------------------------------------------------------------
 # 1. Página de checkout
 # ---------------------------------------------------------------------------
 
 def checkout_view(request):
-    """
-    Renderiza a página de checkout com os pacotes activos da base de dados.
-    Marca como 'is_featured' o pacote com mais clientes.
-    Em empate, ganha o de maior preço.
-
-    Clientes com subscrição ainda activa são redirecionados para o dashboard.
-    """
     today = timezone.now().date()
 
-    # Bloquear acesso ao checkout se o cliente já tem subscrição activa
     if request.user.is_authenticated and request.user.is_client:
         has_active = ClientPackage.objects.filter(
             client=request.user,
@@ -157,15 +161,7 @@ def checkout_view(request):
 
 @require_http_methods(['POST'])
 def create_order(request):
-    """
-    Recebe os dados do checkout, cria o Order com status 'pending' e chama a
-    Debito Pay. O comportamento depende do payment_method escolhido:
-
-    - mpesa: confirmação síncrona. Se success, activamos o pacote já aqui.
-    - emola / mkesh: assíncrono, fica 'pending' até o webhook confirmar.
-    - visa_mastercard / payfast: devolvemos checkout_url para o frontend
-      redirecionar para o Hosted Checkout da Debito Pay.
-    """
+    order = None
     try:
         body = json.loads(request.body)
 
@@ -197,7 +193,6 @@ def create_order(request):
                 status=404,
             )
 
-        # Cria o Order localmente antes de ir à Debito Pay
         order = Order.objects.create(
             ref=f'JN{uuid.uuid4().hex[:6].upper()}',
             package=package,
@@ -210,25 +205,27 @@ def create_order(request):
             status='pending',
         )
 
-        # Cria o payment na Debito Pay
         data = _debitopay_create_payment(order, payment_method, phone=client_phone)
 
-        # NOTA: reaproveitamos os campos paysuite_id / paysuite_transaction_id
-        # que já existiam no modelo para guardar o payment_id / referência da
-        # Debito Pay, para não obrigar a uma migração. Considera renomeá-los
-        # (ex.: debitopay_payment_id) numa migração futura.
         order.paysuite_id = data.get('payment_id', '')
         order.save(update_fields=['paysuite_id'])
 
         if payment_method == 'mpesa':
-            # Confirmação síncrona
             if data.get('status') == 'success':
                 Order.objects.filter(pk=order.pk, status='pending').update(
                     status='paid',
                     paysuite_transaction_id=data.get('transactionId', ''),
                 )
                 order.refresh_from_db()
-                activate_client_package(order)
+
+                # O pagamento já está confirmado e o order já está 'paid'.
+                # A partir daqui, activate_client_package é best-effort:
+                # se falhar (ex.: SMTP do email de boas-vindas), NÃO
+                # devolvemos erro ao cliente nem bloqueamos o redirect —
+                # a conta/pacote já foram criados dentro dessa função
+                # antes de chegar ao envio de email.
+                _activate_client_package_safe(order, context='create_order/mpesa')
+
                 return JsonResponse({
                     'success': True,
                     'status': 'paid',
@@ -243,7 +240,6 @@ def create_order(request):
                 )
 
         elif payment_method in ('emola', 'mkesh'):
-            # Assíncrono — aguardar webhook payment.completed
             return JsonResponse({
                 'success': True,
                 'status': 'pending',
@@ -261,11 +257,12 @@ def create_order(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
     except http_requests.exceptions.Timeout:
         # A nossa ligação caiu, mas isso NÃO significa que a Debito Pay não
-        # processou o pagamento (sobretudo no mpesa, que espera o cliente
-        # confirmar no telemóvel). Não marcamos o order como 'failed' aqui —
-        # fica 'pending' e deve ser reconciliado via webhook ou por uma
-        # chamada posterior a action=check-status usando order.paysuite_id.
-        logger.warning(f"GATEWAY timeout ao criar pagamento para order {order.ref}")
+        # processou o pagamento. order.paysuite_id pode ainda não ter sido
+        # guardado neste ponto (o timeout acontece antes do response.json()),
+        # por isso a reconciliação posterior tem de usar order.ref
+        # (enviado como source_id no payload) e não order.paysuite_id.
+        ref = order.ref if order is not None else '(order não criado)'
+        logger.warning(f"GATEWAY timeout ao criar pagamento para order {ref}")
         return JsonResponse(
             {
                 'success': False,
@@ -290,11 +287,6 @@ def create_order(request):
 # ---------------------------------------------------------------------------
 
 def checkout_return(request):
-    """
-    A Debito Pay redireciona o cliente aqui após o pagamento (cartão/PayFast),
-    devolvendo ?status=success ou ?status=failed na query string.
-    A validação real é feita no webhook — esta página apenas agradece.
-    """
     return render(request, 'public_site/checkout_return.html')
 
 
@@ -305,12 +297,6 @@ def checkout_return(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def debitopay_webhook(request):
-    """
-    Recebe eventos da Debito Pay (payment.completed / payment.failed /
-    payment.refunded / payment.chargeback).
-    Verifica a assinatura HMAC-SHA256 (header X-Webhook-Signature) antes de
-    processar, conforme documentação da Debito Pay.
-    """
     if not _verify_debitopay_signature(request):
         logger.warning('WEBHOOK assinatura inválida — pedido rejeitado')
         return HttpResponse('Assinatura inválida.', status=401)
@@ -321,36 +307,33 @@ def debitopay_webhook(request):
         data = event.get('data', {})
         payment_id = data.get('payment_id')
 
-        # Correspondência feita pelo payment_id devolvido na criação do
-        # pagamento (guardado em order.paysuite_id) — o campo "reference"
-        # do webhook é a referência do provedor, não o order.ref.
         order = Order.objects.get(paysuite_id=payment_id)
 
-        # Idempotência — ignorar se o order já foi pago
         if order.status == 'paid':
             logger.warning(f"WEBHOOK order já processado, ignorado: {payment_id}")
             return HttpResponse('OK', status=200)
 
         if event_type == 'payment.completed':
-            # Marca como pago PRIMEIRO — bloqueia chamadas duplicadas
             updated = Order.objects.filter(
                 paysuite_id=payment_id,
-                status='pending',  # só actualiza se ainda estiver pendente
+                status='pending',
             ).update(
                 status='paid',
                 paysuite_transaction_id=data.get('reference', ''),
             )
 
             if not updated:
-                # Outra chamada paralela já processou — ignorar
                 logger.warning(f"WEBHOOK race condition ignorada: {payment_id}")
                 return HttpResponse('OK', status=200)
 
-            # Recarrega o order actualizado
             order.refresh_from_db()
 
-            # Cria conta, ClientProfile, ClientPackage e envia email
-            activate_client_package(order)
+            # Mesma lógica do create_order: o order já está 'paid' neste
+            # ponto. Se activate_client_package falhar a meio (ex.: email),
+            # respondemos 200 à Debito Pay na mesma — devolver 500 aqui
+            # só provoca retries do webhook que a idempotência acima (status
+            # == 'paid') vai ignorar sem nunca voltar a tentar a activação.
+            _activate_client_package_safe(order, context='webhook/payment.completed')
 
         elif event_type == 'payment.failed':
             Order.objects.filter(paysuite_id=payment_id, status='pending').update(
@@ -363,7 +346,6 @@ def debitopay_webhook(request):
             )
             logger.warning(f"WEBHOOK {event_type} recebido para order {order.ref}")
 
-        # A Debito Pay exige resposta em menos de 5 segundos
         return HttpResponse('OK', status=200)
 
     except Order.DoesNotExist:
