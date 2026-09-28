@@ -13,7 +13,7 @@ class MyPackagesView(LoginRequiredMixin, ClientRequiredMixin, ListView):
     context_object_name = "client_packages"
 
     def get_queryset(self):
-        today = timezone.now().date()
+        today = timezone.localdate()
 
         # Auto-expirar pacotes cuja data já passou
         ClientPackage.objects.filter(
@@ -32,7 +32,7 @@ class MyPackagesView(LoginRequiredMixin, ClientRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+        today = timezone.localdate()
         ctx["active_package"] = self.get_queryset().filter(
             status="active",
             end_date__gte=today,

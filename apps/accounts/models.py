@@ -9,6 +9,7 @@ class User(AbstractUser):
         COACH = "coach", "Coach"
         CLIENT = "client", "Cliente"
 
+    email = models.EmailField("email address", unique=True)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CLIENT)
     phone = models.CharField(max_length=20, blank=True)
     photo = models.ImageField(upload_to="profile_photos/", blank=True, null=True)

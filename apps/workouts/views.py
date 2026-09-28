@@ -3,11 +3,12 @@ from django.views.generic import ListView, DetailView, View
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 
 from .models import WorkoutPlan, WorkoutDay, WorkoutLog, ExerciseLog, WorkoutExercise
 from .forms import ExerciseLogForm
 from apps.accounts.mixins import ClientRequiredMixin
+from apps.packages.models import active_packages
 
 
 class WorkoutPlanListView(LoginRequiredMixin, ClientRequiredMixin, ListView):
@@ -18,8 +19,7 @@ class WorkoutPlanListView(LoginRequiredMixin, ClientRequiredMixin, ListView):
 
     def get_queryset(self):
         return WorkoutPlan.objects.filter(
-            coachingpackage__clientpackage__client=self.request.user,
-            coachingpackage__clientpackage__status="active",
+            coachingpackage__in=active_packages(self.request.user),
         ).prefetch_related(
             "days__exercises__exercise__muscle_groups"
         ).distinct()
@@ -30,25 +30,23 @@ class WorkoutPlanDetailView(LoginRequiredMixin, ClientRequiredMixin, DetailView)
     model = WorkoutPlan
     template_name = "workouts/plan_detail.html"
 
+    def get_queryset(self):
+        return WorkoutPlan.objects.filter(
+            coachingpackage__in=active_packages(self.request.user),
+        ).distinct()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+
+        # last_completed / times_completed calculados numa única consulta
+        # (annotate) em vez de duas consultas por cada dia do plano.
+        own_completed_logs = Q(workoutlog__client=self.request.user, workoutlog__completed=True)
         days = self.object.days.prefetch_related(
             "exercises__exercise__muscle_groups"
+        ).annotate(
+            times_completed=Count("workoutlog", filter=own_completed_logs),
+            last_completed=Max("workoutlog__date", filter=own_completed_logs),
         ).all()
-
-        # Adicionar info de último treino por dia
-        for day in days:
-            last_log = WorkoutLog.objects.filter(
-                client=self.request.user,
-                workout_day=day,
-                completed=True,
-            ).order_by("-date").first()
-            day.last_completed = last_log.date if last_log else None
-            day.times_completed = WorkoutLog.objects.filter(
-                client=self.request.user,
-                workout_day=day,
-                completed=True,
-            ).count()
 
         ctx["days"] = days
         return ctx
@@ -58,6 +56,11 @@ class WorkoutDayDetailView(LoginRequiredMixin, ClientRequiredMixin, DetailView):
     """Visualização de um dia de treino (pré-sessão)."""
     model = WorkoutDay
     template_name = "workouts/day_detail.html"
+
+    def get_queryset(self):
+        return WorkoutDay.objects.filter(
+            plan__coachingpackage__in=active_packages(self.request.user),
+        ).distinct()
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -85,13 +88,16 @@ class StartWorkoutView(LoginRequiredMixin, ClientRequiredMixin, View):
     """Inicia sessão de treino — cria WorkoutLog e redireciona."""
 
     def post(self, request, pk):
-        day = get_object_or_404(WorkoutDay, pk=pk)
+        day = get_object_or_404(
+            WorkoutDay.objects.filter(plan__coachingpackage__in=active_packages(request.user)).distinct(),
+            pk=pk,
+        )
 
         # Verificar se já existe treino não finalizado hoje
         existing_log = WorkoutLog.objects.filter(
             client=request.user,
             workout_day=day,
-            date=timezone.now().date(),
+            date=timezone.localdate(),
             completed=False,
         ).first()
 
@@ -148,20 +154,31 @@ class WorkoutSessionView(LoginRequiredMixin, ClientRequiredMixin, DetailView):
         return ctx
 
 
-class SaveSetLogView(LoginRequiredMixin, View):
+class SaveSetLogView(LoginRequiredMixin, ClientRequiredMixin, View):
     """AJAX: Salvar dados de uma série individual."""
 
     def post(self, request):
         log_id = request.POST.get("log_id")
         exercise_id = request.POST.get("workout_exercise_id")
-        set_number = int(request.POST.get("set_number", 0))
+        try:
+            set_number = int(request.POST.get("set_number", 0))
+        except (TypeError, ValueError):
+            return JsonResponse({"status": "error", "error": "set_number inválido."}, status=400)
         weight = request.POST.get("weight_kg")
         reps = request.POST.get("reps_done")
         completed = request.POST.get("completed") == "true"
 
+        # Só pode gravar num treino próprio ainda não terminado.
+        log = get_object_or_404(WorkoutLog, pk=log_id, client=request.user, completed=False)
+        # E só num exercício que pertence mesmo a esse dia de treino.
+        we = get_object_or_404(WorkoutExercise, pk=exercise_id, workout_day=log.workout_day)
+
+        if not (1 <= set_number <= we.sets):
+            return JsonResponse({"status": "error", "error": "set_number fora do intervalo."}, status=400)
+
         exercise_log, created = ExerciseLog.objects.update_or_create(
-            workout_log_id=log_id,
-            workout_exercise_id=exercise_id,
+            workout_log=log,
+            workout_exercise=we,
             set_number=set_number,
             defaults={
                 "weight_kg": float(weight) if weight else None,

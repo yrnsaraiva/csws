@@ -6,6 +6,7 @@ from django.views import View
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Count, Sum, Q
 from datetime import timedelta
 
@@ -26,19 +27,21 @@ class LoginView(View):
         return render(request, "accounts/login.html")
 
     def post(self, request):
-        email = request.POST.get("email")
+        email = request.POST.get("email", "")
         password = request.POST.get("password")
         try:
-            user_obj = User.objects.get(email=email)
+            user_obj = User.objects.get(email__iexact=email)
             user = authenticate(request, username=user_obj.username, password=password)
-            print(user)
         except User.DoesNotExist:
             user = None
-            print(user)
         if user is not None:
             login(request, user)
-            next_url = request.GET.get("next", "accounts:dashboard")
-            return redirect(next_url)
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
+                return redirect(next_url)
+            return redirect("accounts:dashboard")
         return render(request, "accounts/login.html", {
             "form": {"errors": True},
             "error_message": "Email ou senha incorretos.",
@@ -72,7 +75,7 @@ class DashboardView(LoginRequiredMixin, ClientRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        today = timezone.now().date()
+        today = timezone.localdate()
         week_start = today - timedelta(days=today.weekday())
 
         # --- Auto-expirar pacotes cuja data já passou ---
@@ -113,17 +116,17 @@ class DashboardView(LoginRequiredMixin, ClientRequiredMixin, TemplateView):
             ctx["total_days"] = 0
 
         # --- Streak (dias consecutivos com treino) ---
+        # Uma única consulta com todas as datas treinadas, em vez de uma
+        # consulta por cada dia do streak.
+        trained_dates = set(
+            WorkoutLog.objects.filter(client=user, completed=True)
+            .values_list("date", flat=True)
+        )
         streak = 0
         check_date = today
-        while True:
-            has_log = WorkoutLog.objects.filter(
-                client=user, date=check_date, completed=True
-            ).exists()
-            if has_log:
-                streak += 1
-                check_date -= timedelta(days=1)
-            else:
-                break
+        while check_date in trained_dates:
+            streak += 1
+            check_date -= timedelta(days=1)
         ctx["streak"] = streak
 
         # --- Treino de hoje ---

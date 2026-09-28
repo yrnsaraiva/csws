@@ -1,7 +1,21 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from .models import Order, Invoice
+from .activation import activate_client_package
 from unfold.admin import ModelAdmin, TabularInline
+
+
+class SemAcessoFilter(admin.SimpleListFilter):
+    title = 'acesso'
+    parameter_name = 'acesso'
+
+    def lookups(self, request, model_admin):
+        return [('sem_acesso', 'Pagas sem acesso criado')]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'sem_acesso':
+            return queryset.filter(status='paid', client_package__isnull=True)
+        return queryset
 
 
 @admin.register(Order)
@@ -17,9 +31,29 @@ class OrderAdmin(ModelAdmin):
 
     list_filter = (
         'status',
+        SemAcessoFilter,
         'created_at',
         'package',
     )
+
+    actions = ['ativar_acesso']
+
+    @admin.action(description='Ativar acesso (cria ClientPackage para encomendas pagas sem acesso)')
+    def ativar_acesso(self, request, queryset):
+        alvo = queryset.filter(status='paid', client_package__isnull=True)
+        sucesso = 0
+        for order in alvo:
+            try:
+                activate_client_package(order)
+                sucesso += 1
+            except Exception as e:
+                self.message_user(
+                    request, f'Falhou para {order.ref}: {e}', level=messages.ERROR
+                )
+        if sucesso:
+            self.message_user(
+                request, f'Acesso ativado para {sucesso} encomenda(s).', level=messages.SUCCESS
+            )
 
     search_fields = (
         'ref',
@@ -82,6 +116,7 @@ class OrderAdmin(ModelAdmin):
             'paid': '#22c55e',
             'failed': '#ef4444',
             'refunded': '#60a5fa',
+            'chargeback': '#a855f7',
         }
 
         color = colors.get(obj.status, '#9ca3af')

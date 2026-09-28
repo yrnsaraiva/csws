@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: csws
+          POSTGRES_PASSWORD: csws
+          POSTGRES_DB: csws_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DEBUG: "0"
+      SECURE_SSL_REDIRECT: "0"
+      ALLOWED_HOSTS: "testserver"
+      DJANGO_SECRET_KEY: "ci-test-secret-key-not-used-in-production-0123456789"
+      DATABASE_URL: "postgresql://csws:csws@localhost:5432/csws_test"
+      APP_URL: "https://cantstopwontstop.lt/app/"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run tests
+        run: python manage.py test

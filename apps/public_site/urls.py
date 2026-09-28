@@ -7,6 +7,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('checkout/', views.checkout_view, name='checkout'),
     path('checkout/order/', views.create_order, name='create_order'),
+    path('checkout/order/<str:ref>/status/', views.order_status, name='order_status'),
     path('checkout/obrigado/', views.checkout_return, name='checkout_return'),
     path('checkout/webhook/', views.debitopay_webhook, name='debitopay_webhook'),
 ]

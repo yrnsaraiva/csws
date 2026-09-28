@@ -4,9 +4,14 @@ from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 import os
 import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Em produção (Railway) as variáveis já vêm do ambiente; load_dotenv() não
+# encontra .env nesse caso e não faz nada.
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -16,17 +21,36 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv("DEBUG", "0") == "1"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS", "cantstopwontstop.lt,www.cantstopwontstop.lt"
+).split(",")
+
+if DEBUG:
+    # 'testserver' é o host usado pelo Django test client e pelo manage.py test.
+    ALLOWED_HOSTS += ["localhost", "127.0.0.1", "testserver"]
 
 CSRF_TRUSTED_ORIGINS = [
+    # csws.up.railway.app é usado directamente em DEBITOPAY_RETURN_URL
     'https://*.railway.app',
     'http://localhost',
     'http://127.0.0.1',
     'https://cantstopwontstop.lt',
     'https://www.cantstopwontstop.lt',
 ]
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Desligável isoladamente (ex.: CI, onde os testes correm com DEBUG=0
+    # contra Postgres real mas sem TLS) sem abrir mão do resto do
+    # endurecimento de produção.
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', '1') == '1'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
@@ -51,6 +75,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "rest_framework_simplejwt",
+    "storages",
 
 
     "apps.accounts.apps.AccountsConfig",
@@ -142,7 +167,38 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+# Ficheiros enviados via admin (fotos de perfil, miniaturas, vídeos de
+# exercícios) num bucket compatível com S3 (ex.: Cloudflare R2, sem custo
+# de saída de dados). O disco do Railway é efémero a cada deploy, por isso
+# sem isto os ficheiros carregados desaparecem no deploy seguinte.
+#
+# Só é activado quando as credenciais abaixo estão definidas; sem elas,
+# MEDIA_ROOT continua a ser o disco local (só serve para desenvolvimento).
+# Até este storage estar configurado em produção, preferir video_url
+# (YouTube/Vimeo) a vídeos carregados directamente nos exercícios.
+AWS_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+AWS_S3_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")  # https://<account_id>.r2.cloudflarestorage.com
+AWS_S3_CUSTOM_DOMAIN = os.getenv("R2_PUBLIC_DOMAIN") or None  # domínio público do bucket, se houver
+AWS_S3_REGION_NAME = os.getenv("R2_REGION", "auto")
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
+
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME and AWS_S3_ENDPOINT_URL:
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+    }
 
 
 # Internationalization
@@ -150,7 +206,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Maputo'
 
 USE_I18N = True
 
@@ -180,6 +236,11 @@ MEDIA_ROOT = BASE_DIR / "media"
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "accounts:dashboard"
 LOGOUT_REDIRECT_URL = "accounts:login"
+
+APP_URL = os.getenv("APP_URL", "https://cantstopwontstop.lt/app/")
+
+# Prazo de validade do link de definir/recuperar password (3 dias).
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24 * 3
 
 
 UNFOLD = {
