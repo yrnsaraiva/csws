@@ -172,7 +172,15 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        # Manifest storage exige collectstatic antes de servir qualquer
+        # página (é o que o Procfile faz na fase release). Em DEBUG usa-se
+        # a storage simples do Django para não obrigar a correr
+        # collectstatic a cada alteração durante o desenvolvimento.
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG else
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
     },
 }
 
