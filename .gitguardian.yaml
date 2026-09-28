@@ -1,0 +1,9 @@
+version: 2
+
+# .github/workflows/tests.yml só tem a password de uma base de dados
+# Postgres efémera do CI (existe apenas dentro do contentor de serviço,
+# só é usada pelos testes, nunca é um segredo real). Sem isto o
+# GitGuardian marca-a como "Generic Password" pelo nome da chave.
+secret:
+  ignored-paths:
+    - .github/workflows/tests.yml

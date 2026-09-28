@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Bloqueia commits de segredos e da base de dados local.
+# Instalar: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -euo pipefail
+
+blocked_patterns='(^|/)\.env$|(^|/)db\.sqlite3$'
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+hit=$(echo "$staged" | grep -E "$blocked_patterns" || true)
+if [ -n "$hit" ]; then
+    echo "pre-commit: ficheiros bloqueados no commit:"
+    echo "$hit"
+    echo "Estes ficheiros não devem ser versionados (contêm segredos ou dados locais)."
+    exit 1
+fi
+
+if [ -n "$staged" ]; then
+    key_hit=$(git diff --cached -- $staged | grep -E '^\+' | grep -Ei 'sk_live_|api_key\s*=\s*["'"'"'][^"'"'"']{10,}|SECRET\s*=\s*["'"'"'][^"'"'"']{10,}' || true)
+    if [ -n "$key_hit" ]; then
+        echo "pre-commit: possível segredo em texto simples no diff:"
+        echo "$key_hit"
+        exit 1
+    fi
+fi
+
+exit 0

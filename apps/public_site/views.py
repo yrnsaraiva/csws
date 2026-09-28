@@ -89,6 +89,33 @@ def _debitopay_create_payment(order, payment_method, phone=None):
     return data
 
 
+def debitopay_check_status(order):
+    """
+    Consulta o estado real de um pagamento na Debito Pay (usado pelo
+    comando reconcile_orders para encomendas 'pending' há muito tempo,
+    tipicamente por causa de um timeout na chamada original a create_order).
+
+    Devolve o dict da resposta da Debito Pay (inclui 'status').
+    """
+    payload = {
+        'action': 'check-status',
+        'merchant_id': settings.DEBITOPAY_MERCHANT_ID,
+        'source': 'gateway',
+        'source_id': order.ref,
+    }
+    if order.paysuite_id:
+        payload['payment_id'] = order.paysuite_id
+
+    response = http_requests.post(
+        f'{DEBITOPAY_BASE}/payment-orchestrator',
+        headers=DEBITOPAY_HEADERS,
+        json=payload,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def _verify_debitopay_signature(request):
     signature = request.headers.get('X-Webhook-Signature', '')
     if not signature:
@@ -129,7 +156,7 @@ def _activate_client_package_safe(order, context=''):
 # ---------------------------------------------------------------------------
 
 def checkout_view(request):
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     if request.user.is_authenticated and request.user.is_client:
         has_active = ClientPackage.objects.filter(
@@ -229,13 +256,19 @@ def create_order(request):
                 return JsonResponse({
                     'success': True,
                     'status': 'paid',
+                    'order_ref': order.ref,
                     'reference': data.get('reference', ''),
                 })
             else:
                 order.status = 'failed'
                 order.save(update_fields=['status'])
                 return JsonResponse(
-                    {'success': False, 'error': 'Pagamento M-Pesa não confirmado.'},
+                    {
+                        'success': False,
+                        'error': 'Pagamento M-Pesa não confirmado.',
+                        'order_ref': order.ref,
+                        'status': 'failed',
+                    },
                     status=402,
                 )
 
@@ -244,12 +277,15 @@ def create_order(request):
                 'success': True,
                 'status': 'pending',
                 'awaiting_confirmation': True,
+                'order_ref': order.ref,
                 'reference': data.get('reference', ''),
             })
 
         else:  # visa_mastercard / payfast — Hosted Checkout
             return JsonResponse({
                 'success': True,
+                'status': 'redirect',
+                'order_ref': order.ref,
                 'checkout_url': data.get('checkout_url'),
             })
 
@@ -261,25 +297,31 @@ def create_order(request):
         # guardado neste ponto (o timeout acontece antes do response.json()),
         # por isso a reconciliação posterior tem de usar order.ref
         # (enviado como source_id no payload) e não order.paysuite_id.
-        ref = order.ref if order is not None else '(order não criado)'
+        ref = order.ref if order is not None else None
         logger.warning(f"GATEWAY timeout ao criar pagamento para order {ref}")
         return JsonResponse(
             {
                 'success': False,
                 'error': 'A confirmar o pagamento, isto pode demorar um pouco. Verifique o estado antes de tentar novamente.',
                 'status': 'pending',
+                'order_ref': ref,
             },
             status=202,
         )
     except http_requests.RequestException as e:
+        logger.exception(f"GATEWAY erro ao criar pagamento (order {order.ref if order else '?'})")
         return JsonResponse(
-            {'success': False, 'error': f'Erro ao contactar gateway de pagamento: {e}'},
+            {'success': False, 'error': 'Erro ao contactar o gateway de pagamento. Tente novamente.'},
             status=502,
         )
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Pedido inválido.'}, status=400)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    except Exception:
+        logger.exception(f"CREATE_ORDER erro inesperado (order {order.ref if order else '?'})")
+        return JsonResponse(
+            {'success': False, 'error': 'Ocorreu um erro inesperado. Tente novamente.'},
+            status=500,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -306,16 +348,34 @@ def debitopay_webhook(request):
         event_type = event.get('event')
         data = event.get('data', {})
         payment_id = data.get('payment_id')
+        source_id = data.get('source_id') or event.get('source_id')
 
-        order = Order.objects.get(paysuite_id=payment_id)
+        order = None
+        if payment_id:
+            order = Order.objects.filter(paysuite_id=payment_id).first()
+        if order is None and source_id:
+            # Cobre o caso de um timeout em create_order: o pagamento foi
+            # criado na Debito Pay mas paysuite_id nunca chegou a ser
+            # gravado. order.ref foi enviado como source_id nesse pedido.
+            order = Order.objects.filter(ref=source_id).first()
 
-        if order.status == 'paid':
-            logger.warning(f"WEBHOOK order já processado, ignorado: {payment_id}")
+        if order is None:
+            return HttpResponse('Referência desconhecida.', status=404)
+
+        if payment_id and order.paysuite_id != payment_id:
+            order.paysuite_id = payment_id
+            order.save(update_fields=['paysuite_id'])
+
+        if event_type == 'payment.completed' and order.status == 'paid':
+            # Idempotência: só se aplica a payment.completed. Um
+            # payment.refunded/chargeback chega precisamente quando o
+            # order já está 'paid' e não deve ser ignorado por isso.
+            logger.warning(f"WEBHOOK order já processado, ignorado: {order.ref}")
             return HttpResponse('OK', status=200)
 
         if event_type == 'payment.completed':
             updated = Order.objects.filter(
-                paysuite_id=payment_id,
+                pk=order.pk,
                 status='pending',
             ).update(
                 status='paid',
@@ -323,7 +383,7 @@ def debitopay_webhook(request):
             )
 
             if not updated:
-                logger.warning(f"WEBHOOK race condition ignorada: {payment_id}")
+                logger.warning(f"WEBHOOK race condition ignorada: {order.ref}")
                 return HttpResponse('OK', status=200)
 
             order.refresh_from_db()
@@ -336,19 +396,39 @@ def debitopay_webhook(request):
             _activate_client_package_safe(order, context='webhook/payment.completed')
 
         elif event_type == 'payment.failed':
-            Order.objects.filter(paysuite_id=payment_id, status='pending').update(
+            Order.objects.filter(pk=order.pk, status='pending').update(
                 status='failed',
             )
 
         elif event_type in ('payment.refunded', 'payment.chargeback'):
-            Order.objects.filter(paysuite_id=payment_id).update(
-                status='refunded' if event_type == 'payment.refunded' else 'chargeback',
-            )
+            new_status = 'refunded' if event_type == 'payment.refunded' else 'chargeback'
+            Order.objects.filter(pk=order.pk).update(status=new_status)
             logger.warning(f"WEBHOOK {event_type} recebido para order {order.ref}")
+
+            client_package = getattr(order, 'client_package', None)
+            if client_package and client_package.status == 'active':
+                client_package.status = 'cancelled'
+                client_package.save(update_fields=['status'])
 
         return HttpResponse('OK', status=200)
 
+    except Exception:
+        logger.exception('WEBHOOK erro inesperado')
+        return HttpResponse('Erro interno.', status=500)
+
+
+# ---------------------------------------------------------------------------
+# 5. Estado da encomenda (para o polling do checkout)
+# ---------------------------------------------------------------------------
+
+def order_status(request, ref):
+    try:
+        order = Order.objects.get(ref=ref)
     except Order.DoesNotExist:
-        return HttpResponse('Referência desconhecida.', status=404)
-    except Exception as e:
-        return HttpResponse(str(e), status=500)
+        return JsonResponse({'success': False, 'error': 'Encomenda não encontrada.'}, status=404)
+
+    return JsonResponse({
+        'success': True,
+        'order_ref': order.ref,
+        'status': order.status,
+    })

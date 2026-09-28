@@ -125,11 +125,17 @@
         font-weight: 600; color: var(--foreground);
     }
 
-    /* ---- Success state ---- */
-    #checkout-success { display: none; }
+    /* ---- Success / waiting state ---- */
+    #checkout-success, #checkout-waiting { display: none; }
 
-    /* ---- M-Pesa field ---- */
-    #mpesa-field, #ref-field { display: none; }
+    .spinner {
+        width: 2.5rem; height: 2.5rem;
+        border: 2px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ---- Animations ---- */
     @keyframes checkDraw {
@@ -332,8 +338,19 @@
                             <span id="s2-price" class="font-display text-2xl" style="color:var(--primary);">—</span>
                         </div>
                     </div>
+
+                    <p class="text-xs font-body font-semibold uppercase tracking-[0.15em]" style="color:var(--muted);">Método de pagamento</p>
+                    <div class="space-y-2">
+                        <button type="button" class="pay-btn selected" onclick="selectPay(this, 'mpesa')">
+                            <span class="pay-dot"></span> M-Pesa
+                        </button>
+                        <button type="button" class="pay-btn" onclick="selectPay(this, 'emola')">
+                            <span class="pay-dot"></span> e-Mola
+                        </button>
+                    </div>
+
                     <p class="text-xs font-body leading-relaxed" style="color:var(--muted);">
-                        Após o pagamento, receberás acesso ao app e o personal trainer entrará em contacto em até 24h.
+                        Vais receber um pedido de confirmação no teu telemóvel. Assim que confirmares, o pagamento é validado automaticamente e o acesso ao app é enviado por email.
                     </p>
                 </div>
             </div>
@@ -352,6 +369,22 @@
             </div>
         </div>
 
+        <!-- ===================== WAITING (confirmar no telemóvel) ===================== -->
+        <div id="checkout-waiting" class="max-w-2xl mx-auto text-center py-12">
+            <div class="spinner mx-auto mb-8"></div>
+
+            <span class="section-label">A aguardar confirmação</span>
+            <h2 class="section-heading text-3xl md:text-5xl mb-4">
+                Confirma no teu <em class="italic">telemóvel</em>
+            </h2>
+            <p class="font-body text-sm leading-relaxed mb-4 max-w-md mx-auto" style="color:var(--muted);">
+                Enviámos um pedido de pagamento para o teu número. Aprova-o na notificação ou marcação do teu telemóvel para concluíres a compra.
+            </p>
+            <p class="font-body text-xs leading-relaxed max-w-md mx-auto" style="color:var(--muted);">
+                Ref. encomenda: <span id="waiting-ref" style="color:var(--foreground);">—</span>
+            </p>
+        </div>
+
         <!-- ===================== SUCCESS ===================== -->
         <div id="checkout-success" class="max-w-2xl mx-auto text-center py-12">
             <svg class="mx-auto mb-8" width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -360,12 +393,12 @@
                 <path class="check-anim" d="M24 40 l12 12 l20-24" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
 
-            <span class="section-label">Encomenda recebida</span>
+            <span class="section-label">Pagamento confirmado</span>
             <h2 class="section-heading text-3xl md:text-5xl mb-4">
                 Obrigado, <em class="italic" id="success-name">—</em>
             </h2>
             <p class="font-body text-sm leading-relaxed mb-10 max-w-md mx-auto" style="color:var(--muted);">
-                A tua encomenda foi registada com sucesso. O personal trainer entrará em contacto em até <strong style="color:var(--foreground);">24 horas</strong> para confirmar o pagamento e dar-te acesso ao app.
+                O teu pagamento foi confirmado. Enviámos o acesso ao app para o teu email.
             </p>
 
             <div class="summary-box max-w-sm mx-auto text-left mb-10">
@@ -496,19 +529,20 @@ function selectPay(btn, method) {
     document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     state.payMethod = method;
-
-    document.getElementById('mpesa-field').style.display = (method === 'mpesa' || method === 'emola') ? 'block' : 'none';
-    document.getElementById('ref-field').style.display   = method === 'transferencia' ? 'block' : 'none';
-
-    // Update label
-    const codeLabel = document.querySelector('#mpesa-field .f-label');
-    if (codeLabel) codeLabel.textContent = method === 'emola' ? 'Código de confirmação e-Mola' : 'Código de confirmação M-Pesa';
 }
 
-// Show M-Pesa by default on page load
-document.getElementById('mpesa-field').style.display = 'block';
-
 /* ---- Submit order ---- */
+let pollTimer = null;
+const POLL_INTERVAL_MS = 4000;
+const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+function resetSubmitButton() {
+    const btn = document.getElementById('btn-2-next');
+    btn.disabled = false;
+    btn.textContent = 'Confirmar';
+    btn.style.opacity = '1';
+}
+
 function submitOrder() {
     const btn = document.getElementById('btn-2-next');
     btn.disabled = true;
@@ -516,13 +550,13 @@ function submitOrder() {
     btn.style.opacity = '0.7';
 
     const payload = {
-        package_id:   state.packageId,
-        client_name:  document.getElementById('f-name').value.trim(),
-        client_email: document.getElementById('f-email').value.trim(),
-        client_phone: document.getElementById('f-phone').value.trim(),
-        goal:         document.getElementById('f-goal').value,
-        notes:        document.getElementById('f-notes').value.trim(),
-        amount:       state.packagePrice,
+        package_id:     state.packageId,
+        client_name:    document.getElementById('f-name').value.trim(),
+        client_email:   document.getElementById('f-email').value.trim(),
+        client_phone:   document.getElementById('f-phone').value.trim(),
+        goal:           document.getElementById('f-goal').value,
+        notes:          document.getElementById('f-notes').value.trim(),
+        payment_method: state.payMethod,
     };
 
     fetch('/checkout/order/', {
@@ -533,31 +567,78 @@ function submitOrder() {
         },
         body: JSON.stringify(payload),
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success && data.checkout_url) {
-            // Redireciona para o checkout da PaySuite (M-Pesa, e-Mola ou cartão)
+    .then(r => r.json().then(data => ({ httpStatus: r.status, data })))
+    .then(({ httpStatus, data }) => {
+        if (data.status === 'paid') {
+            showSuccess(data.order_ref);
+        } else if (data.status === 'redirect' && data.checkout_url) {
             window.location.href = data.checkout_url;
+        } else if (data.status === 'pending' && data.order_ref) {
+            // Cobre tanto o awaiting_confirmation (e-Mola/mKesh) como o
+            // timeout (HTTP 202): em ambos os casos a encomenda já existe
+            // e o estado real só se sabe consultando o backend.
+            showWaiting(data.order_ref);
+            pollOrderStatus(data.order_ref);
         } else {
             alert('Erro: ' + (data.error || 'Tente novamente.'));
-            btn.disabled = false;
-            btn.textContent = 'Confirmar Encomenda';
-            btn.style.opacity = '1';
+            resetSubmitButton();
         }
     })
     .catch(() => {
         alert('Erro de ligação. Verifique a sua internet e tente novamente.');
-        btn.disabled = false;
-        btn.textContent = 'Confirmar Encomenda';
-        btn.style.opacity = '1';
+        resetSubmitButton();
     });
 }
 
-function showSuccess(ref) {
+function pollOrderStatus(ref) {
+    const startedAt = Date.now();
+    clearInterval(pollTimer);
+
+    pollTimer = setInterval(() => {
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+            clearInterval(pollTimer);
+            return;
+        }
+
+        fetch(`/checkout/order/${ref}/status/`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                if (data.status === 'paid') {
+                    clearInterval(pollTimer);
+                    showSuccess(data.order_ref);
+                } else if (data.status === 'failed') {
+                    clearInterval(pollTimer);
+                    alert('O pagamento não foi confirmado. Podes tentar novamente.');
+                    goStep(2);
+                    resetSubmitButton();
+                }
+                // status ainda 'pending' → continua a consultar
+            })
+            .catch(() => {});
+    }, POLL_INTERVAL_MS);
+}
+
+function showWaiting(ref) {
     [1,2].forEach(i => {
         const el = document.getElementById('step' + i);
         if (el) el.style.display = 'none';
     });
+    document.getElementById('checkout-success').style.display = 'none';
+    document.getElementById('step-indicator').style.opacity = '0.3';
+
+    setText('waiting-ref', ref || '-');
+    document.getElementById('checkout-waiting').style.display = 'block';
+    window.scrollTo(0, 0);
+}
+
+function showSuccess(ref) {
+    clearInterval(pollTimer);
+    [1,2].forEach(i => {
+        const el = document.getElementById('step' + i);
+        if (el) el.style.display = 'none';
+    });
+    document.getElementById('checkout-waiting').style.display = 'none';
     document.getElementById('step-indicator').style.opacity = '0.3';
 
     setText('success-name',  document.getElementById('f-name').value.trim().split(' ')[0]);

@@ -1,0 +1,14 @@
+{% autoescape off %}Olá {{ user.first_name }},
+
+O teu pagamento foi confirmado e a tua conta foi criada com sucesso!
+
+Pacote: {{ order.package.name }}
+Validade: {{ order.package.duration_days }} dias
+
+Para acederes ao app, define primeiro a tua password aqui:
+{{ set_password_url }}
+
+Este link é válido por 3 dias. Depois de definires a password, entra em {{ app_url }} com o teu email ({{ user.email }}).
+
+Equipa can't stop wont stop
+{% endautoescape %}

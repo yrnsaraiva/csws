@@ -1,0 +1,59 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Can't Stop Won't Stop{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: 'hsl(66, 61%, 96%)',
+                            100: 'hsl(66, 61%, 90%)',
+                            200: 'hsl(66, 61%, 80%)',
+                            300: 'hsl(66, 61%, 68%)',
+                            400: 'hsl(66, 61%, 58%)',
+                            500: 'hsl(66, 61%, 49%)',
+                            600: 'hsl(66, 61%, 42%)',
+                            700: 'hsl(66, 61%, 35%)',
+                            800: 'hsl(66, 61%, 28%)',
+                            900: 'hsl(66, 61%, 20%)',
+                        },
+                        dark: {
+                            DEFAULT: 'hsl(0, 0%, 0%)',
+                            card: 'hsl(0, 0%, 7%)',
+                            surface: 'hsl(0, 0%, 13%)',
+                            border: 'hsl(0, 0%, 20%)',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="h-full bg-dark flex items-center justify-center p-4">
+<div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+        <a href="{% url 'public_site:home' %}" class="flex justify-center leading-tight cursor-pointer">
+            <img src="{% static 'img/05_icon_texto_verdebranco_fundo_preto_grande.png' %}"
+                 alt="Can't Stop Won't Stop" width="200">
+        </a>
+        {% block subtitle %}{% endblock %}
+    </div>
+
+    {% block content %}{% endblock %}
+
+    <p class="text-center text-sm text-gray-600 mt-6">
+        <a href="{% url 'accounts:login' %}" class="text-brand-400 hover:text-brand-300 font-medium">Voltar ao login</a>
+    </p>
+</div>
+</body>
+</html>

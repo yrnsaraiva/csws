@@ -1,10 +1,15 @@
-import secrets
-import string
-from datetime import date, timedelta
+from datetime import timedelta
+from urllib.parse import urlsplit
 
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from apps.accounts.models import ClientProfile
 from apps.packages.models import ClientPackage
@@ -12,10 +17,17 @@ from apps.packages.models import ClientPackage
 User = get_user_model()
 
 
-def _generate_password(length=12):
-    """Gera uma password aleatória segura."""
-    chars = string.ascii_letters + string.digits + '!@#$%'
-    return ''.join(secrets.choice(chars) for _ in range(length))
+def _build_set_password_url(user):
+    """
+    Gera o link único de "definir password" (mesmo mecanismo do
+    'esqueci-me da password'), válido por PASSWORD_RESET_TIMEOUT.
+    """
+    app_url = getattr(settings, 'APP_URL', 'https://cantstopwontstop.lt/app/')
+    base = urlsplit(app_url)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    path = reverse('accounts:password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
+    return f'{base.scheme}://{base.netloc}{path}'
 
 
 def _derive_username(email):
@@ -43,7 +55,7 @@ def activate_client_package(order):
 
     Retorna o User criado/encontrado.
     """
-    coach = User.objects.filter(role='coach').first()
+    coach = order.package.coach
 
     # ── 1. User ──────────────────────────────────────────────────────────────
     user, created = User.objects.get_or_create(
@@ -67,10 +79,10 @@ def activate_client_package(order):
         user.save(update_fields=['is_active', 'coach'])
 
     # ── 2. Password (só para contas novas) ───────────────────────────────────
-    raw_password = None
+    # Sem password gerada: a conta fica sem password utilizável até o
+    # cliente definir a sua própria através do link enviado por email.
     if created:
-        raw_password = _generate_password()
-        user.set_password(raw_password)
+        user.set_unusable_password()
         user.save(update_fields=['password'])
 
     # ── 3. ClientProfile ─────────────────────────────────────────────────────
@@ -83,12 +95,13 @@ def activate_client_package(order):
     )
 
     # ── 4. ClientPackage ─────────────────────────────────────────────────────
-    start_date = date.today()
+    start_date = timezone.localdate()
     end_date = start_date + timedelta(days=order.package.duration_days)
 
     ClientPackage.objects.create(
         client=user,
         package=order.package,
+        order=order,
         status='active',
         start_date=start_date,
         end_date=end_date,
@@ -99,7 +112,7 @@ def activate_client_package(order):
     import logging
     logger = logging.getLogger(__name__)
     try:
-        _send_welcome_email(user, order, raw_password)
+        _send_welcome_email(user, order, is_new_account=created)
         logger.warning(f"EMAIL enviado para {user.email}")
     except Exception as e:
         logger.error(f"EMAIL FALHOU para {user.email}: {e}")
@@ -107,51 +120,37 @@ def activate_client_package(order):
     return user
 
 
-def _send_welcome_email(user, order, raw_password=None):
+def _send_welcome_email(user, order, is_new_account):
     """
-    Envia email com credenciais de acesso (conta nova) ou confirmação (re-compra).
+    Envia email de boas-vindas com link para definir password (conta nova)
+    ou confirmação de renovação (re-compra). HTML com fallback em texto simples.
     """
-    app_url = getattr(settings, 'APP_URL', 'https://app.cantstop.co.mz')
+    app_url = getattr(settings, 'APP_URL', 'https://cantstopwontstop.lt/app/')
 
-    if raw_password:
-        subject = f'Bem-vindo(a) à can\'t stop, {user.first_name}!'
-        message = f"""Olá {user.first_name},
+    context = {
+        'user': user,
+        'order': order,
+        'app_url': app_url,
+    }
 
-O seu pagamento foi confirmado e a sua conta foi criada com sucesso!
-
-Pacote: {order.package.name}
-Validade: {order.package.duration_days} dias
-
-Acesse o app com as seguintes credenciais:
-  URL:      {app_url}
-  Email:    {user.email}
-  Password: {raw_password}
-
-Recomendamos que altere a password após o primeiro login.
-
-O coach entrará em contacto em breve para dar início ao seu plano.
-
-Equipa can\'t stop
-"""
+    if is_new_account:
+        subject = f"Bem-vindo(a) à can't stop, {user.first_name}!"
+        context['set_password_url'] = _build_set_password_url(user)
+        text_template = 'billing/email/welcome_email.txt'
+        html_template = 'billing/email/welcome_email.html'
     else:
         subject = f'Renovação confirmada, {user.first_name}!'
-        message = f"""Olá {user.first_name},
+        text_template = 'billing/email/renewal_email.txt'
+        html_template = 'billing/email/renewal_email.html'
 
-A renovação do seu pacote foi confirmada!
+    text_body = render_to_string(text_template, context)
+    html_body = render_to_string(html_template, context)
 
-Pacote: {order.package.name}
-Validade: {order.package.duration_days} dias adicionais
-
-Continue a aceder ao app com as suas credenciais habituais:
-  URL: {app_url}
-
-Equipa can't stop
-"""
-
-    send_mail(
+    email = EmailMultiAlternatives(
         subject=subject,
-        message=message,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@cantstop.co.mz'),
-        recipient_list=[user.email],
-        fail_silently=False,
+        body=text_body,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'geral@cantstopwontstop.lt'),
+        to=[user.email],
     )
+    email.attach_alternative(html_body, 'text/html')
+    email.send(fail_silently=False)

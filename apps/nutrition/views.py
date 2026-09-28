@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from .models import NutritionPlan, Meal, MealItem, NutritionLog
 from apps.accounts.mixins import ClientRequiredMixin
-from apps.packages.models import ClientPackage
+from apps.packages.models import ClientPackage, active_packages
 
 
 class NutritionPlanListView(LoginRequiredMixin, ClientRequiredMixin, ListView):
@@ -17,8 +17,7 @@ class NutritionPlanListView(LoginRequiredMixin, ClientRequiredMixin, ListView):
 
     def get_queryset(self):
         return NutritionPlan.objects.filter(
-            coachingpackage__clientpackage__client=self.request.user,
-            coachingpackage__clientpackage__status="active",
+            coachingpackage__in=active_packages(self.request.user),
         ).distinct()
 
     def get_context_data(self, **kwargs):
@@ -37,10 +36,15 @@ class NutritionPlanDetailView(LoginRequiredMixin, ClientRequiredMixin, DetailVie
     template_name = "nutrition/plan_detail.html"
     context_object_name = "plan"
 
+    def get_queryset(self):
+        return NutritionPlan.objects.filter(
+            coachingpackage__in=active_packages(self.request.user),
+        ).distinct()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         plan = self.object
-        today = timezone.now().date()
+        today = timezone.localdate()
 
         # Refeições com macros calculados
         meals = plan.meals.prefetch_related("items__food").all()
@@ -90,6 +94,11 @@ class MealDetailView(LoginRequiredMixin, ClientRequiredMixin, DetailView):
     template_name = "nutrition/meal_detail.html"
     context_object_name = "meal"
 
+    def get_queryset(self):
+        return Meal.objects.filter(
+            plan__coachingpackage__in=active_packages(self.request.user),
+        ).distinct()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         items = self.object.items.select_related("food").all()
@@ -110,8 +119,11 @@ class ToggleMealLogView(LoginRequiredMixin, ClientRequiredMixin, View):
     """Marcar/desmarcar refeição como completa (AJAX ou redirect)."""
 
     def post(self, request, pk):
-        meal = get_object_or_404(Meal, pk=pk)
-        today = timezone.now().date()
+        meal = get_object_or_404(
+            Meal.objects.filter(plan__coachingpackage__in=active_packages(request.user)).distinct(),
+            pk=pk,
+        )
+        today = timezone.localdate()
 
         log, created = NutritionLog.objects.get_or_create(
             client=request.user,

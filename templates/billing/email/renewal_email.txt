@@ -1,0 +1,12 @@
+{% autoescape off %}Olá {{ user.first_name }},
+
+A renovação do teu pacote foi confirmada!
+
+Pacote: {{ order.package.name }}
+Validade: {{ order.package.duration_days }} dias adicionais
+
+Continua a aceder ao app com as tuas credenciais habituais:
+{{ app_url }}
+
+Equipa can't stop wont stop
+{% endautoescape %}

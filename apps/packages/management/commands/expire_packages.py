@@ -8,7 +8,7 @@ class Command(BaseCommand):
     help = 'Marca como "completed" todos os ClientPackages cuja end_date já passou.'
 
     def handle(self, *args, **kwargs):
-        today = timezone.now().date()
+        today = timezone.localdate()
         updated = ClientPackage.objects.filter(
             status='active',
             end_date__lt=today,

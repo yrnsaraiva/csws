@@ -5,6 +5,19 @@ from apps.workouts.models import *
 from apps.nutrition.models import *
 
 
+def active_packages(user):
+    """
+    Pacotes de coaching activos do cliente (usado para restringir o
+    conteúdo de treino/nutrição que cada cliente pode ver).
+    """
+    today = timezone.localdate()
+    return CoachingPackage.objects.filter(
+        clientpackage__client=user,
+        clientpackage__status="active",
+        clientpackage__end_date__gte=today,
+    )
+
+
 class CoachingPackage(models.Model):
     """Pacote de coaching (agrega treino + nutrição)."""
 
@@ -50,6 +63,11 @@ class ClientPackage(models.Model):
         related_name="client_packages", limit_choices_to={"role": "client"}
     )
     package = models.ForeignKey(CoachingPackage, on_delete=models.CASCADE)
+    order = models.OneToOneField(
+        "billing.Order", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="client_package",
+        help_text="Encomenda que originou este acesso (para reembolsos/chargebacks cancelarem o acesso).",
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -61,7 +79,7 @@ class ClientPackage(models.Model):
 
     @property
     def is_expired(self):
-        return self.end_date < timezone.now().date()
+        return self.end_date < timezone.localdate()
 
     def expire_if_needed(self):
         """Marca como 'completed' se a data já passou."""

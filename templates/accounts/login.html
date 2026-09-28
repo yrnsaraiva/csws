@@ -85,7 +85,10 @@
         </div>
 
         <div>
-            <label class="text-sm font-medium text-gray-300 mb-1.5 block">Senha</label>
+            <div class="flex items-center justify-between mb-1.5">
+                <label class="text-sm font-medium text-gray-300 block">Senha</label>
+                <a href="{% url 'accounts:password_reset' %}" class="text-xs text-brand-400 hover:text-brand-300">Esqueci-me da password</a>
+            </div>
             <input type="password" name="password" required
                    class="w-full bg-dark-card border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
                    placeholder="••••••••">

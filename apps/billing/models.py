@@ -9,6 +9,7 @@ class Order(models.Model):
         ('paid', 'Pago'),
         ('failed', 'Falhado'),
         ('refunded', 'Reembolsado'),
+        ('chargeback', 'Chargeback'),
     ]
 
     PAY_METHOD_CHOICES = [

@@ -122,7 +122,7 @@ class ClientPackageAdmin(ModelAdmin):
     def days_remaining(self, obj):
         if obj.status != "active":
             return "—"
-        remaining = (obj.end_date - timezone.now().date()).days
+        remaining = (obj.end_date - timezone.localdate()).days
         if remaining < 0:
             return mark_safe('<span style="color:#ef4444;">Expirado</span>')
         if remaining <= 7:
@@ -155,7 +155,7 @@ class ClientPackageAdmin(ModelAdmin):
     def renew_30_days(self, request, queryset):
         from datetime import timedelta
         for cp in queryset:
-            cp.end_date = timezone.now().date() + timedelta(days=30)
+            cp.end_date = timezone.localdate() + timedelta(days=30)
             cp.status = "active"
             cp.save()
         self.message_user(request, f"{queryset.count()} pacote(s) renovado(s) por 30 dias.")
