@@ -9,7 +9,7 @@ venv/
 
 # Django
 staticfiles/
-#.env
+.env
 
 # IDE
 .idea/
@@ -20,4 +20,4 @@ staticfiles/
 Thumbs.db
 
 # database
-#db.sqlite3
+db.sqlite3
