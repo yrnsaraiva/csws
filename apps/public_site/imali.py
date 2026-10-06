@@ -23,6 +23,28 @@ SUPPORTED_METHODS = MOBILE_MONEY_METHODS | {'imali'}
 REQUEST_TIMEOUT = 30
 
 
+def _load_public_key():
+    """
+    Normaliza o PEM antes de o carregar — variáveis de ambiente guardadas
+    numa única linha (ex.: Railway, Docker) muitas vezes trazem o '\\n'
+    como dois caracteres em vez de uma quebra de linha real, ou ficam
+    entre aspas, e isso faz o parser de PEM falhar com "MalformedFraming".
+    """
+    raw = settings.IMALI_PUBLIC_KEY or ''
+    pem = raw.strip()
+    if len(pem) >= 2 and pem[0] == pem[-1] and pem[0] in ('"', "'"):
+        pem = pem[1:-1].strip()
+    pem = pem.replace('\\n', '\n')
+    try:
+        return load_pem_public_key(pem.encode('utf-8'))
+    except ValueError as e:
+        raise ValueError(
+            'IMALI_PUBLIC_KEY não é um PEM válido (verificar se as quebras '
+            'de linha do bloco -----BEGIN/END PUBLIC KEY----- não ficaram '
+            f'como texto "\\n" literal na variável de ambiente): {e}'
+        ) from e
+
+
 def _private_key():
     """
     Gera o token de autenticação ("privateKey") exigido pela iMali:
@@ -33,7 +55,7 @@ def _private_key():
     aleatório, por isso o valor nunca é igual duas vezes — não há nada
     para cachear).
     """
-    public_key = load_pem_public_key(settings.IMALI_PUBLIC_KEY.encode('utf-8'))
+    public_key = _load_public_key()
     ciphertext = public_key.encrypt(
         settings.IMALI_API_KEY.encode('utf-8'),
         padding.PKCS1v15(),

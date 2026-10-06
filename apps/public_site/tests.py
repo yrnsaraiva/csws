@@ -15,6 +15,7 @@ from django.urls import reverse
 
 from apps.billing.models import Order
 from apps.packages.models import ClientPackage, CoachingPackage
+from apps.public_site import imali
 
 User = get_user_model()
 
@@ -266,6 +267,33 @@ class CheckoutFlowTests(TestCase):
             reverse('public_site:order_status', kwargs={'ref': 'NAOEXISTE'})
         )
         self.assertEqual(response.status_code, 404)
+
+
+class ImaliPublicKeyNormalizationTests(TestCase):
+    """
+    Regressão: "Unable to load PEM file ... MalformedFraming". Acontece
+    quando o PEM é guardado numa variável de ambiente de uma linha e as
+    quebras de linha ficam como `\\n` literal, ou com aspas a mais à volta.
+    """
+
+    def test_pem_com_quebras_de_linha_reais_carrega(self):
+        with override_settings(IMALI_PUBLIC_KEY=_TEST_PUBLIC_KEY_PEM, IMALI_API_KEY='x'):
+            imali._private_key()  # não deve lançar excepção
+
+    def test_pem_com_barra_n_literal_carrega(self):
+        single_line = _TEST_PUBLIC_KEY_PEM.replace('\n', '\\n')
+        with override_settings(IMALI_PUBLIC_KEY=single_line, IMALI_API_KEY='x'):
+            imali._private_key()
+
+    def test_pem_entre_aspas_carrega(self):
+        quoted = f'"{_TEST_PUBLIC_KEY_PEM}"'
+        with override_settings(IMALI_PUBLIC_KEY=quoted, IMALI_API_KEY='x'):
+            imali._private_key()
+
+    def test_pem_invalido_da_erro_com_mensagem_util(self):
+        with override_settings(IMALI_PUBLIC_KEY='isto não é um PEM', IMALI_API_KEY='x'):
+            with self.assertRaisesMessage(ValueError, 'IMALI_PUBLIC_KEY'):
+                imali._private_key()
 
 
 class AdminRefundActionTests(TestCase):
