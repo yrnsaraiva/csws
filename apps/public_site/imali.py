@@ -8,6 +8,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import re
 import time
 
 import requests as http_requests
@@ -72,6 +73,29 @@ def _headers():
     }
 
 
+def _normalize_phone(phone):
+    """
+    A iMali espera o número local de 9 dígitos, sem +258 nem zero à
+    frente (os exemplos da documentação usam ex.: mpesa: 842592349).
+    O formulário do checkout pede "+258 84 000 0000", por isso é preciso
+    normalizar antes de enviar.
+    """
+    digits = re.sub(r'\D', '', phone or '')
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+def _raise_for_status_with_body(response, context):
+    """
+    Como raise_for_status() não inclui o corpo da resposta, um erro 4xx/5xx
+    da iMali (que normalmente vem com um JSON {"errors": {...}} a explicar
+    exactamente o que falhou) ficava invisível nos logs. Registar o corpo
+    antes de propagar a excepção.
+    """
+    if response.status_code >= 400:
+        logger.error(f"IMALI {context} — HTTP {response.status_code}: {response.text[:2000]}")
+    response.raise_for_status()
+
+
 def create_push_payment(order, payment_method, phone):
     """
     Cria um pedido de pagamento Push (C2B) — a iMali envia um pedido de
@@ -82,8 +106,12 @@ def create_push_payment(order, payment_method, phone):
     if payment_method not in SUPPORTED_METHODS:
         raise ValueError(f'Método de pagamento não suportado: {payment_method}')
 
+    client_account_number = (
+        _normalize_phone(phone) if payment_method in MOBILE_MONEY_METHODS else phone
+    )
+
     payload = {
-        'client_account_number': phone,
+        'client_account_number': client_account_number,
         'amount': float(order.amount),
         'store_account_number': settings.IMALI_STORE_ACCOUNT_NUMBER,
         'partner_transaction_id': order.ref,
@@ -98,7 +126,7 @@ def create_push_payment(order, payment_method, phone):
         json=payload,
         timeout=REQUEST_TIMEOUT,
     )
-    response.raise_for_status()
+    _raise_for_status_with_body(response, f'create_push_payment order={order.ref}')
     data = response.json()
 
     if 'errors' in data:
@@ -127,7 +155,7 @@ def check_status(partner_transaction_id, payment_type='push'):
         json=payload,
         timeout=REQUEST_TIMEOUT,
     )
-    response.raise_for_status()
+    _raise_for_status_with_body(response, f'check_status ref={partner_transaction_id}')
     return response.json().get('data', {})
 
 

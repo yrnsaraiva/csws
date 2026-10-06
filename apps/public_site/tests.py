@@ -108,6 +108,9 @@ class CheckoutFlowTests(TestCase):
         _, kwargs = mock_post.call_args
         self.assertEqual(kwargs['json']['payment_method'], 'mpesa')
         self.assertEqual(kwargs['json']['partner_transaction_id'], order.ref)
+        # client_phone no payload de entrada é '+258840000000' — a iMali
+        # espera o formato local de 9 dígitos, sem o +258.
+        self.assertEqual(kwargs['json']['client_account_number'], '840000000')
         self.assertEqual(len(order.ref), 12)
         self.assertIn('Authorization', kwargs['headers'])
         self.assertEqual(kwargs['headers']['X-Client-ID'], 'test-client-id')
@@ -294,6 +297,26 @@ class ImaliPublicKeyNormalizationTests(TestCase):
         with override_settings(IMALI_PUBLIC_KEY='isto não é um PEM', IMALI_API_KEY='x'):
             with self.assertRaisesMessage(ValueError, 'IMALI_PUBLIC_KEY'):
                 imali._private_key()
+
+
+class PhoneNormalizationTests(TestCase):
+    """
+    A iMali espera o número local de 9 dígitos (ex.: mpesa: 842592349),
+    sem +258 nem espaços — o formulário do checkout recolhe
+    "+258 84 000 0000".
+    """
+
+    def test_numero_com_mais_258_e_espacos(self):
+        self.assertEqual(imali._normalize_phone('+258 84 000 0000'), '840000000')
+
+    def test_numero_com_258_sem_mais(self):
+        self.assertEqual(imali._normalize_phone('258840000000'), '840000000')
+
+    def test_numero_ja_local(self):
+        self.assertEqual(imali._normalize_phone('840000000'), '840000000')
+
+    def test_numero_com_zero_inicial(self):
+        self.assertEqual(imali._normalize_phone('0840000000'), '840000000')
 
 
 class AdminRefundActionTests(TestCase):
