@@ -113,7 +113,7 @@ def create_push_payment(order, payment_method, phone):
     payload = {
         'client_account_number': client_account_number,
         'amount': float(order.amount),
-        'store_account_number': settings.IMALI_STORE_ACCOUNT_NUMBER,
+        'store_account_number': (settings.IMALI_STORE_ACCOUNT_NUMBER or '').strip(),
         'partner_transaction_id': order.ref,
         'payment_method': payment_method,
         'payment_type': 'push',
