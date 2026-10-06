@@ -2,7 +2,7 @@
 
 App de coaching (treino + nutrição) com checkout online. Django no backend,
 templates server-side no site público e na área de membros, pagamentos via
-Debito Pay (M-Pesa / e-Mola), deploy no Railway.
+iMali.Way / Paytek (M-Pesa / e-Mola / mKesh), deploy no Railway.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Debito Pay (M-Pesa / e-Mola), deploy no Railway.
 - PostgreSQL em produção, SQLite em desenvolvimento (`DEBUG=1`)
 - WhiteNoise para ficheiros estáticos
 - django-storages (S3-compatível, para Cloudflare R2) para ficheiros enviados via admin
-- Debito Pay como gateway de pagamento (M-Pesa / e-Mola)
+- iMali.Way (Paytek) como gateway de pagamento (M-Pesa / e-Mola / mKesh)
 
 ## Correr localmente
 
@@ -50,9 +50,11 @@ cada push/PR.
 | `DATABASE_URL` | Sim quando `DEBUG=0` | Connection string do PostgreSQL (formato `postgresql://user:pass@host:port/db`). |
 | `SECURE_SSL_REDIRECT` | Não (default `1` quando `DEBUG=0`) | Só existe para desligar o redirect HTTPS em ambientes sem TLS (ex.: CI). Não mexer em produção. |
 | `APP_URL` | Não | URL pública da área de membros, usada nos emails. Default `https://cantstopwontstop.lt/app/`. |
-| `DEBITOPAY_API_KEY` | Sim em produção | Chave da API da Debito Pay. |
-| `DEBITOPAY_MERCHANT_ID` | Sim em produção | ID de merchant na Debito Pay. |
-| `DEBITOPAY_WEBHOOK_SECRET` | Sim em produção | Segredo para validar a assinatura HMAC dos webhooks da Debito Pay. |
+| `IMALI_API_KEY` | Sim em produção | `api_key` do parceiro, fornecido pela Paytek. |
+| `IMALI_PUBLIC_KEY` | Sim em produção | Chave pública RSA (PEM) fornecida pela Paytek, usada para gerar o token de autenticação de cada pedido. |
+| `IMALI_CLIENT_ID` | Sim em produção | `client_id` do parceiro (header `X-Client-ID`). |
+| `IMALI_WEBHOOK_SECRET` | Sim em produção | Segredo para validar a assinatura HMAC dos webhooks da iMali. |
+| `IMALI_STORE_ACCOUNT_NUMBER` | Sim em produção | Conta iMali da loja para a qual os pagamentos do checkout são dirigidos. A empresa tem mais do que uma Store Account Number atribuída — confirmar no dashboard iMali qual corresponde ao canal do site antes de ir para produção. |
 | `EMAIL_HOST_PASSWORD` | Sim em produção | Password (app password) da caixa `geral@cantstopwontstop.lt` na Hostinger. |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_ENDPOINT_URL` | Não | Credenciais do Cloudflare R2. Sem elas, ficheiros carregados via admin ficam no disco local (perdem-se a cada deploy no Railway). |
 | `R2_PUBLIC_DOMAIN` | Não | Domínio público do bucket R2, se configurado. |
@@ -60,7 +62,7 @@ cada push/PR.
 
 **Nunca** commitar um `.env` com valores reais — está no `.gitignore`. Se
 algum destes segredos foi exposto (ex.: num repositório público), rodar
-imediatamente nos respetivos painéis (Debito Pay, Hostinger, Railway,
+imediatamente nos respetivos painéis (Paytek/iMali, Hostinger, Railway,
 Cloudflare).
 
 ## Deploy (Railway)
@@ -73,7 +75,7 @@ Cloudflare).
   - `python manage.py expire_packages` — diariamente (ex.: `15 0 * * *`).
   - `python manage.py reconcile_orders` — a cada poucos minutos (ex.:
     `*/5 * * * *`), para apanhar encomendas que ficaram `pending` por um
-    timeout na chamada à Debito Pay ou um webhook perdido.
+    timeout na chamada à iMali ou um webhook perdido.
 
 ## Estrutura
 
@@ -84,7 +86,7 @@ apps/
   packages/     pacotes de coaching, atribuição a clientes
   workouts/     planos e sessões de treino
   nutrition/    planos alimentares e registos
-  public_site/  site público, checkout, webhook da Debito Pay
+  public_site/  site público, checkout, webhook da iMali
 config/         settings, urls, wsgi/asgi
 templates/      templates por app + `templates/accounts/email/`, `templates/billing/email/`
 ```

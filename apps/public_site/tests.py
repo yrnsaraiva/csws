@@ -1,19 +1,30 @@
 import hashlib
 import hmac
 import json
+import time
 from unittest.mock import patch
 
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import (
+    Encoding, PublicFormat,
+)
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.billing.models import Order
-from apps.nutrition.models import NutritionPlan
 from apps.packages.models import ClientPackage, CoachingPackage
-from apps.workouts.models import WorkoutPlan
 
 User = get_user_model()
+
+# Par de chaves RSA só para os testes — a publicKey precisa de ser válida
+# para a encriptação em imali._private_key(), mas nenhum destes testes
+# fala com um servidor real que a tente decifrar.
+_TEST_RSA_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+_TEST_PUBLIC_KEY_PEM = _TEST_RSA_KEY.public_key().public_bytes(
+    Encoding.PEM, PublicFormat.SubjectPublicKeyInfo,
+).decode('ascii')
 
 
 def _fake_response(payload, status_code=200):
@@ -32,9 +43,15 @@ def _fake_response(payload, status_code=200):
     return _Resp(payload, status_code)
 
 
-@override_settings(DEBITOPAY_WEBHOOK_SECRET='test-webhook-secret')
+@override_settings(
+    IMALI_API_KEY='test-api-key',
+    IMALI_PUBLIC_KEY=_TEST_PUBLIC_KEY_PEM,
+    IMALI_CLIENT_ID='test-client-id',
+    IMALI_WEBHOOK_SECRET='test-webhook-secret',
+    IMALI_STORE_ACCOUNT_NUMBER='260000079',
+)
 class CheckoutFlowTests(TestCase):
-    """Fluxo de compra: create_order (Debito Pay simulada) + webhook."""
+    """Fluxo de compra: create_order (iMali simulada) + webhook."""
 
     def setUp(self):
         self.coach = User.objects.create_user(
@@ -63,57 +80,46 @@ class CheckoutFlowTests(TestCase):
             content_type='application/json',
         )
 
-    @patch('apps.public_site.views.http_requests.post')
-    def test_create_order_mpesa_confirmado_cria_acesso_e_envia_email(self, mock_post):
+    @patch('apps.public_site.imali.http_requests.post')
+    def test_create_order_mpesa_fica_pending_a_aguardar_confirmacao(self, mock_post):
         mock_post.return_value = _fake_response({
-            'success': True,
-            'status': 'success',
-            'payment_id': 'pay_123',
-            'transactionId': 'tx_123',
-            'reference': 'ref_123',
+            'data': {
+                'transaction_id': 'MPS26ABCDEFG',
+                'partner_transaction_id': 'placeholder',
+                'amount': '1000',
+                'status': 'PENDING',
+            }
         })
 
         response = self._post_order('mpesa')
         data = response.json()
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(data['status'], 'paid')
+        self.assertEqual(data['status'], 'pending')
+        self.assertTrue(data['awaiting_confirmation'])
         self.assertTrue(data['order_ref'])
 
         order = Order.objects.get(ref=data['order_ref'])
-        self.assertEqual(order.status, 'paid')
-        self.assertEqual(order.paysuite_id, 'pay_123')
+        self.assertEqual(order.status, 'pending')
+        self.assertEqual(order.gateway_transaction_id, 'MPS26ABCDEFG')
 
-        user = User.objects.get(email='cliente@example.com')
-        self.assertFalse(user.has_usable_password())
-        self.assertTrue(
-            ClientPackage.objects.filter(client=user, package=self.package, order=order, status='active').exists()
-        )
+        # Verifica que o pedido enviado à iMali tem a forma certa.
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['json']['payment_method'], 'mpesa')
+        self.assertEqual(kwargs['json']['partner_transaction_id'], order.ref)
+        self.assertEqual(len(order.ref), 12)
+        self.assertIn('Authorization', kwargs['headers'])
+        self.assertEqual(kwargs['headers']['X-Client-ID'], 'test-client-id')
 
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('password', mail.outbox[0].alternatives[0][0].lower())
-
-    @patch('apps.public_site.views.http_requests.post')
-    def test_create_order_mpesa_nao_confirmado_nao_cria_acesso(self, mock_post):
-        mock_post.return_value = _fake_response({
-            'success': True,
-            'status': 'failed',
-            'payment_id': 'pay_456',
-        })
-
-        response = self._post_order('mpesa')
-        data = response.json()
-
-        self.assertEqual(response.status_code, 402)
-        self.assertEqual(data['status'], 'failed')
-        self.assertFalse(User.objects.filter(email='cliente@example.com').exists())
-
-    @patch('apps.public_site.views.http_requests.post')
+    @patch('apps.public_site.imali.http_requests.post')
     def test_create_order_emola_fica_a_aguardar_confirmacao(self, mock_post):
         mock_post.return_value = _fake_response({
-            'success': True,
-            'payment_id': 'pay_789',
-            'reference': 'ref_789',
+            'data': {
+                'transaction_id': 'EML26ABCDEFG',
+                'partner_transaction_id': 'placeholder',
+                'amount': '1000',
+                'status': 'PENDING',
+            }
         })
 
         response = self._post_order('emola')
@@ -121,19 +127,30 @@ class CheckoutFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data['status'], 'pending')
-        self.assertTrue(data['awaiting_confirmation'])
         self.assertEqual(Order.objects.get(ref=data['order_ref']).status, 'pending')
 
-    def _sign(self, body: bytes) -> str:
-        return hmac.new(b'test-webhook-secret', body, hashlib.sha256).hexdigest()
+    @patch('apps.public_site.imali.http_requests.post')
+    def test_create_order_metodo_nao_suportado(self, mock_post):
+        response = self._post_order('visa')
+        data = response.json()
 
-    def _post_webhook(self, event, signed=True):
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(data['success'])
+        mock_post.assert_not_called()
+
+    def _sign(self, timestamp: str, body: bytes) -> str:
+        signed_payload = f'{timestamp}.'.encode('utf-8') + body
+        digest = hmac.new(b'test-webhook-secret', signed_payload, hashlib.sha256).hexdigest()
+        return f'sha256={digest}'
+
+    def _post_webhook(self, event, signed=True, timestamp=None):
         body = json.dumps(event).encode()
-        headers = {}
+        timestamp = timestamp or str(int(time.time()))
+        headers = {'HTTP_X_WEBHOOK_TIMESTAMP': timestamp}
         if signed:
-            headers['HTTP_X_WEBHOOK_SIGNATURE'] = self._sign(body)
+            headers['HTTP_X_WEBHOOK_SIGNATURE'] = self._sign(timestamp, body)
         return self.client.post(
-            reverse('public_site:debitopay_webhook'),
+            reverse('public_site:imali_webhook'),
             data=body,
             content_type='application/json',
             **headers,
@@ -141,39 +158,83 @@ class CheckoutFlowTests(TestCase):
 
     def test_webhook_assinatura_invalida_rejeitado(self):
         order = Order.objects.create(
-            ref='JNWEBHOOK1', package=self.package, client_name='X', client_email='x@example.com',
+            ref='CSWEBHOOK001', package=self.package, client_name='X', client_email='x@example.com',
             client_phone='+258800000000', goal='g', amount=self.package.price, status='pending',
-            paysuite_id='pay_sig',
+            gateway_transaction_id='tx_sig',
         )
         response = self._post_webhook(
-            {'event': 'payment.completed', 'data': {'payment_id': 'pay_sig'}}, signed=False
+            {'type': 'PAYMENT.SUCCESS', 'data': {'partner_transaction_id': order.ref}},
+            signed=False,
         )
         self.assertEqual(response.status_code, 401)
         order.refresh_from_db()
         self.assertEqual(order.status, 'pending')
 
-    def test_webhook_payment_completed_activa_acesso(self):
+    def test_webhook_timestamp_fora_da_janela_rejeitado(self):
         order = Order.objects.create(
-            ref='JNWEBHOOK2', package=self.package, client_name='Y', client_email='y@example.com',
+            ref='CSWEBHOOK002', package=self.package, client_name='X', client_email='x@example.com',
+            client_phone='+258800000000', goal='g', amount=self.package.price, status='pending',
+        )
+        old_timestamp = str(int(time.time()) - 600)  # 10 minutos atrás
+        response = self._post_webhook(
+            {'type': 'PAYMENT.SUCCESS', 'data': {'partner_transaction_id': order.ref}},
+            timestamp=old_timestamp,
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_webhook_payment_success_activa_acesso_e_envia_email(self):
+        order = Order.objects.create(
+            ref='CSWEBHOOK003', package=self.package, client_name='Y', client_email='y@example.com',
             client_phone='+258800000001', goal='g', amount=self.package.price, status='pending',
-            paysuite_id='pay_ok',
         )
         response = self._post_webhook({
-            'event': 'payment.completed',
-            'data': {'payment_id': 'pay_ok', 'reference': 'tx_ok'},
+            'id': 'evt_1',
+            'type': 'PAYMENT.SUCCESS',
+            'payment_type': 'C2B',
+            'data': {
+                'amount': 1000,
+                'status': 'SUCCESS',
+                'transaction_id': 'MPS26SUCCESS',
+                'partner_transaction_id': order.ref,
+            },
         })
         self.assertEqual(response.status_code, 200)
         order.refresh_from_db()
         self.assertEqual(order.status, 'paid')
+        self.assertEqual(order.gateway_transaction_id, 'MPS26SUCCESS')
         self.assertTrue(ClientPackage.objects.filter(order=order, status='active').exists())
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_webhook_payment_failed_nao_activa_acesso(self):
+        order = Order.objects.create(
+            ref='CSWEBHOOK004', package=self.package, client_name='Z', client_email='z@example.com',
+            client_phone='+258800000002', goal='g', amount=self.package.price, status='pending',
+        )
+        response = self._post_webhook({
+            'id': 'evt_2',
+            'type': 'PAYMENT.FAILED',
+            'payment_type': 'C2B',
+            'data': {
+                'status': 'FAILED',
+                'status_reason': 'emola - Customer did not enter PIN',
+                'transaction_id': 'EML26FAILED',
+                'partner_transaction_id': order.ref,
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'failed')
+        self.assertFalse(ClientPackage.objects.filter(order=order).exists())
 
     def test_webhook_repetido_nao_duplica_activacao(self):
         order = Order.objects.create(
-            ref='JNWEBHOOK3', package=self.package, client_name='Z', client_email='z@example.com',
-            client_phone='+258800000002', goal='g', amount=self.package.price, status='pending',
-            paysuite_id='pay_dup',
+            ref='CSWEBHOOK005', package=self.package, client_name='W', client_email='w@example.com',
+            client_phone='+258800000003', goal='g', amount=self.package.price, status='pending',
         )
-        event = {'event': 'payment.completed', 'data': {'payment_id': 'pay_dup', 'reference': 'tx_dup'}}
+        event = {
+            'type': 'PAYMENT.SUCCESS',
+            'data': {'status': 'SUCCESS', 'transaction_id': 'DUP1', 'partner_transaction_id': order.ref},
+        }
         self._post_webhook(event)
         self._post_webhook(event)
 
@@ -182,47 +243,16 @@ class CheckoutFlowTests(TestCase):
             'o segundo webhook não deve criar um segundo acesso',
         )
 
-    def test_webhook_sem_paysuite_id_usa_ref_como_fallback(self):
-        """Timeout em create_order: paysuite_id nunca foi gravado."""
-        order = Order.objects.create(
-            ref='JNTIMEOUT1', package=self.package, client_name='W', client_email='w@example.com',
-            client_phone='+258800000003', goal='g', amount=self.package.price, status='pending',
-            paysuite_id='',
-        )
+    def test_webhook_referencia_desconhecida(self):
         response = self._post_webhook({
-            'event': 'payment.completed',
-            'data': {'payment_id': 'pay_late', 'reference': 'tx_late', 'source_id': order.ref},
+            'type': 'PAYMENT.SUCCESS',
+            'data': {'partner_transaction_id': 'NAOEXISTE0001'},
         })
-        self.assertEqual(response.status_code, 200)
-        order.refresh_from_db()
-        self.assertEqual(order.status, 'paid')
-        self.assertEqual(order.paysuite_id, 'pay_late')
-
-    def test_webhook_refund_cancela_acesso(self):
-        order = Order.objects.create(
-            ref='JNREFUND1', package=self.package, client_name='R', client_email='r@example.com',
-            client_phone='+258800000004', goal='g', amount=self.package.price, status='paid',
-            paysuite_id='pay_refund',
-        )
-        user = User.objects.create_user(username='rclient', email='r@example.com', password='x', role='client')
-        cp = ClientPackage.objects.create(
-            client=user, package=self.package, order=order, status='active',
-            start_date='2026-01-01', end_date='2026-12-31',
-        )
-
-        response = self._post_webhook({
-            'event': 'payment.refunded',
-            'data': {'payment_id': 'pay_refund'},
-        })
-        self.assertEqual(response.status_code, 200)
-        order.refresh_from_db()
-        cp.refresh_from_db()
-        self.assertEqual(order.status, 'refunded')
-        self.assertEqual(cp.status, 'cancelled')
+        self.assertEqual(response.status_code, 404)
 
     def test_order_status_endpoint(self):
         order = Order.objects.create(
-            ref='JNSTATUS1', package=self.package, client_name='S', client_email='s@example.com',
+            ref='CSSTATUS0001', package=self.package, client_name='S', client_email='s@example.com',
             client_phone='+258800000005', goal='g', amount=self.package.price, status='pending',
         )
         response = self.client.get(
@@ -236,3 +266,44 @@ class CheckoutFlowTests(TestCase):
             reverse('public_site:order_status', kwargs={'ref': 'NAOEXISTE'})
         )
         self.assertEqual(response.status_code, 404)
+
+
+class AdminRefundActionTests(TestCase):
+    """A iMali não envia webhook de reembolso/chargeback — ação manual na admin."""
+
+    def setUp(self):
+        self.coach = User.objects.create_user(
+            username='coach2', email='coach2@example.com', password='x', role='coach',
+        )
+        self.package = CoachingPackage.objects.create(
+            name='Pack Teste 30d', coach=self.coach, price=1000, duration_days=30, is_active=True,
+        )
+        self.client_user = User.objects.create_user(
+            username='refundclient', email='refund@example.com', password='x', role='client',
+        )
+        self.order = Order.objects.create(
+            ref='CSREFUND0001', package=self.package, client_name='R', client_email='refund@example.com',
+            client_phone='+258800000009', goal='g', amount=self.package.price, status='paid',
+        )
+        self.client_package = ClientPackage.objects.create(
+            client=self.client_user, package=self.package, order=self.order, status='active',
+            start_date='2026-01-01', end_date='2026-12-31',
+        )
+
+    def test_marcar_reembolsada_cancela_acesso(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+        from apps.billing.admin import OrderAdmin
+
+        request = RequestFactory().post('/admin/billing/order/')
+        request.session = {}
+        request._messages = FallbackStorage(request)
+
+        admin = OrderAdmin(Order, AdminSite())
+        admin.marcar_reembolsada(request, Order.objects.filter(pk=self.order.pk))
+
+        self.order.refresh_from_db()
+        self.client_package.refresh_from_db()
+        self.assertEqual(self.order.status, 'refunded')
+        self.assertEqual(self.client_package.status, 'cancelled')

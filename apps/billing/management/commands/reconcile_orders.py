@@ -6,21 +6,15 @@ from datetime import timedelta
 
 from apps.billing.models import Order
 from apps.billing.activation import activate_client_package
-from apps.public_site.views import debitopay_check_status
+from apps.public_site import imali
 
 logger = logging.getLogger(__name__)
-
-# Valores de 'status' devolvidos pela Debito Pay em check-status que
-# consideramos confirmados / definitivamente falhados. Ajustar conforme
-# a documentação real da Debito Pay confirmar os valores exactos.
-PAID_STATUSES = {'paid', 'completed', 'success'}
-FAILED_STATUSES = {'failed', 'cancelled', 'expired', 'declined'}
 
 
 class Command(BaseCommand):
     help = (
         "Reconcilia encomendas 'pending' há mais de 5 minutos consultando "
-        "o estado real na Debito Pay (cobre timeouts em create_order e "
+        "o estado real na iMali (cobre timeouts em create_order e "
         "webhooks perdidos)."
     )
 
@@ -35,18 +29,16 @@ class Command(BaseCommand):
         for order in stuck_orders:
             checked += 1
             try:
-                data = debitopay_check_status(order)
+                data = imali.check_status(order.ref, payment_type='push')
             except Exception:
                 logger.exception(f"RECONCILE falhou a consultar order {order.ref}")
                 continue
 
-            status = (data.get('status') or '').lower()
+            status = (data.get('status') or '').upper()
 
-            if status in PAID_STATUSES:
+            if status == 'SUCCESS':
                 updated = Order.objects.filter(pk=order.pk, status='pending').update(
                     status='paid',
-                    paysuite_id=data.get('payment_id') or order.paysuite_id,
-                    paysuite_transaction_id=data.get('transactionId') or data.get('reference', ''),
                 )
                 if updated:
                     order.refresh_from_db()
@@ -58,12 +50,12 @@ class Command(BaseCommand):
                         )
                     confirmed += 1
 
-            elif status in FAILED_STATUSES:
+            elif status in ('FAILED', 'EXPIRED'):
                 Order.objects.filter(pk=order.pk, status='pending').update(status='failed')
                 failed += 1
 
-            # outros estados (ainda pending/processing) ficam como estão,
-            # para serem verificados novamente na próxima execução.
+            # PENDING fica como está, para ser verificado novamente na
+            # próxima execução.
 
         self.stdout.write(
             self.style.SUCCESS(

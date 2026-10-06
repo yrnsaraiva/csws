@@ -32,7 +32,8 @@ if DEBUG:
     ALLOWED_HOSTS += ["localhost", "127.0.0.1", "testserver"]
 
 CSRF_TRUSTED_ORIGINS = [
-    # csws.up.railway.app é usado directamente em DEBITOPAY_RETURN_URL
+    # Railway atribui sempre um subdomínio *.up.railway.app, acessível
+    # diretamente mesmo com o domínio próprio configurado.
     'https://*.railway.app',
     'http://localhost',
     'http://127.0.0.1',
@@ -416,12 +417,19 @@ UNFOLD = {
 }
 
 
-DEBITOPAY_API_KEY = os.environ.get("DEBITOPAY_API_KEY")
-DEBITOPAY_MERCHANT_ID = os.environ.get("DEBITOPAY_MERCHANT_ID")
-DEBITOPAY_WALLET_CODE = ""
-DEBITOPAY_WEBHOOK_SECRET = os.environ.get("DEBITOPAY_WEBHOOK_SECRET")
-DEBITOPAY_RETURN_URL = "https://csws.up.railway.app/checkout/obrigado/"
-DEBITOPAY_CURRENCY = "MZN"
+# iMali.Way (Paytek) — gateway de pagamentos (M-Pesa / e-Mola / mKesh / iMali).
+IMALI_BASE_URL = os.getenv(
+    "IMALI_BASE_URL", "https://paytek-africa.net:11901/api/partners/imaliway/v2"
+)
+IMALI_API_KEY = os.environ.get("IMALI_API_KEY")
+IMALI_PUBLIC_KEY = os.environ.get("IMALI_PUBLIC_KEY")
+IMALI_CLIENT_ID = os.environ.get("IMALI_CLIENT_ID")
+IMALI_WEBHOOK_SECRET = os.environ.get("IMALI_WEBHOOK_SECRET")
+# Conta iMali da loja para a qual os pagamentos do checkout público são
+# dirigidos. Há mais do que uma Store Account Number atribuída à empresa
+# (provavelmente uma por canal/POS) — confirmar com a Paytek/dashboard
+# qual corresponde ao canal "website" antes de ir para produção.
+IMALI_STORE_ACCOUNT_NUMBER = os.environ.get("IMALI_STORE_ACCOUNT_NUMBER")
 
 
 # Email - Gmail SMTP

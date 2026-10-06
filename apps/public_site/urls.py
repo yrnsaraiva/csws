@@ -9,5 +9,5 @@ urlpatterns = [
     path('checkout/order/', views.create_order, name='create_order'),
     path('checkout/order/<str:ref>/status/', views.order_status, name='order_status'),
     path('checkout/obrigado/', views.checkout_return, name='checkout_return'),
-    path('checkout/webhook/', views.debitopay_webhook, name='debitopay_webhook'),
+    path('checkout/webhook/', views.imali_webhook, name='imali_webhook'),
 ]
