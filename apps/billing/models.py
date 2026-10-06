@@ -15,7 +15,8 @@ class Order(models.Model):
     PAY_METHOD_CHOICES = [
         ('mpesa', 'M-Pesa'),
         ('emola', 'e-Mola'),
-        ('credit_card', 'Cartão de Crédito/Débito'),
+        ('mkesh', 'mKesh'),
+        ('imali', 'iMali'),
     ]
 
     # Dados da encomenda
@@ -29,9 +30,9 @@ class Order(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
-    # Campos PaySuite (preenchidos após criar o payment request)
-    paysuite_id = models.CharField(max_length=100, blank=True)
-    paysuite_transaction_id = models.CharField(max_length=100, blank=True)
+    # Campos do gateway de pagamento (preenchidos após criar o pagamento)
+    gateway_transaction_id = models.CharField(max_length=100, blank=True)
+    gateway_reference = models.CharField(max_length=100, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -36,7 +36,7 @@ class OrderAdmin(ModelAdmin):
         'package',
     )
 
-    actions = ['ativar_acesso']
+    actions = ['ativar_acesso', 'marcar_reembolsada']
 
     @admin.action(description='Ativar acesso (cria ClientPackage para encomendas pagas sem acesso)')
     def ativar_acesso(self, request, queryset):
@@ -55,18 +55,41 @@ class OrderAdmin(ModelAdmin):
                 request, f'Acesso ativado para {sucesso} encomenda(s).', level=messages.SUCCESS
             )
 
+    @admin.action(description='Marcar como reembolsada (cancela o acesso)')
+    def marcar_reembolsada(self, request, queryset):
+        """
+        A iMali não tem (nesta versão da API) um evento de webhook para
+        reembolsos/chargebacks — ao contrário da Debito Pay, um reembolso
+        feito manualmente (ex.: B2C transfer) não chega a notificar a app.
+        Esta ação cobre esse caso: usar depois de reembolsar o cliente.
+        """
+        alvo = list(queryset.filter(status='paid').select_related('client_package'))
+        count = len(alvo)
+        for order in alvo:
+            order.status = 'refunded'
+            order.save(update_fields=['status'])
+            cp = getattr(order, 'client_package', None)
+            if cp and cp.status == 'active':
+                cp.status = 'cancelled'
+                cp.save(update_fields=['status'])
+        if count:
+            self.message_user(
+                request, f'{count} encomenda(s) marcada(s) como reembolsada(s) e acesso cancelado.',
+                level=messages.SUCCESS,
+            )
+
     search_fields = (
         'ref',
         'client_name',
         'client_email',
         'client_phone',
-        'paysuite_transaction_id',
+        'gateway_reference',
     )
 
     readonly_fields = (
         'ref',
-        'paysuite_id',
-        'paysuite_transaction_id',
+        'gateway_transaction_id',
+        'gateway_reference',
         'created_at',
         'updated_at',
     )
@@ -95,10 +118,10 @@ class OrderAdmin(ModelAdmin):
             )
         }),
 
-        ('PaySuite', {
+        ('Gateway de Pagamento', {
             'fields': (
-                'paysuite_id',
-                'paysuite_transaction_id',
+                'gateway_transaction_id',
+                'gateway_reference',
             )
         }),
 
